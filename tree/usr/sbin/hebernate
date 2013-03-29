@@ -24,10 +24,10 @@ case $1 in
    /usr/sbin/pm-suspend 2>/tmp/.hebernate-$USER 1>&2 || $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
    rm -f /tmp/.hebernate-$USER
    (
-      soundfile="/usr/share/eliva-sounds/system-restored.ogg"
+      soundfile="/usr/share/eliva-sounds/system-restored.mp3"
       cat "$soundfile" >/dev/null &
       sleep 10
-      timeout 30 ogg123 -q "$soundfile" || true
+      timeout 30 mpg123 -q "$soundfile" || true
       check_for_errors
    ) &
    exit
@@ -57,10 +57,10 @@ case $1 in
    /usr/sbin/pm-hibernate 2>/tmp/.hebernate-$USER 1>&2 || $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
    rm -f /tmp/.hebernate-$USER
    (
-      soundfile="/usr/share/eliva-sounds/system-restored.ogg"
+      soundfile="/usr/share/eliva-sounds/system-restored.mp3"
       cat "$soundfile" >/dev/null &
       sleep 10
-      timeout 30 ogg123 -q "$soundfile" || true
+      timeout 30 mpg123 -q "$soundfile" || true
       check_for_errors
    ) &
    ;;
