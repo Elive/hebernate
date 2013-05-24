@@ -20,13 +20,16 @@ check_for_errors(){
 case $1 in
 --suspend)
    #warning-messages-elive suspend
+   setvolume mute
    sync
    /usr/sbin/pm-suspend 2>/tmp/.hebernate-$USER 1>&2 || $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
+   sleep 10
+   sync
+   setvolume unmute
    rm -f /tmp/.hebernate-$USER
    (
       soundfile="/usr/share/eliva-sounds/system-restored.mp3"
       cat "$soundfile" >/dev/null &
-      sleep 10
       timeout 30 mpg123 -q "$soundfile" || true
       check_for_errors
    ) &
@@ -53,13 +56,16 @@ case $1 in
 
    #/usr/sbin/hibernate --force 2>/tmp/.hebernate-$USER 1>&2 || $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
    #warning-messages-elive suspend
+   setvolume mute
    sync
    /usr/sbin/pm-hibernate 2>/tmp/.hebernate-$USER 1>&2 || $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
+   sleep 10
+   sync
+   setvolume unmute
    rm -f /tmp/.hebernate-$USER
    (
       soundfile="/usr/share/eliva-sounds/system-restored.mp3"
       cat "$soundfile" >/dev/null &
-      sleep 10
       timeout 30 mpg123 -q "$soundfile" || true
       check_for_errors
    ) &
