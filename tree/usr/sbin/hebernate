@@ -1,77 +1,94 @@
 #!/bin/bash
-export TEXTDOMAIN=hebernate
+. gettext.sh
+export TEXTDOMAIN="hebernate"
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-guitool=zenity
+guitool="zenity"
 
 if (runlevel | grep -q [06]) || (pidof '/sbin/shutdown' > /dev/null); then
-   echo -e "Do not suspend/hibernate because system is shuting down"
-   exit 0
+    echo -e "Do not suspend/hibernate because system is shuting down"
+    exit 0
 fi
 
 check_for_errors(){
-   for i in 1 2 3 4 5
-   do
-      lines=$( dmesg | tail 30 | grep -i error | grep -qi sector )
-      [[ "$lines" -gt "3" ]] && $guitool --info --text=$"Warning: Looks like you've got errors on your hard disk after suspend/hibernate. Please open a terminal and run the command 'dmesg' to view them in detail. If you find errors on your hard disk, you should shutdown your computer and stop using these features immediately. Not doing this could damage your data seriously."
-      sleep 3
-   done
+    for i in 1 2 3 4 5
+    do
+	lines="$( dmesg | tail 30 | grep -i error | grep -qi sector )"
+
+	if [[ "$lines" -gt "3" ]] ; then
+	    $guitool --info --text="$( eval_gettext "Warning: Looks like you've got errors on your hard disk after suspend/hibernate. Please open a terminal and run the command 'dmesg' to view them in detail. If you find errors on your hard disk, you should shutdown your computer and stop using these features immediately. Not doing this could damage your data seriously." )"
+	fi
+
+	sleep 3
+    done
 }
 
 case $1 in
---suspend)
-   #warning-messages-elive suspend
-   setvolume mute
-   sync
-   /usr/sbin/pm-suspend 2>/tmp/.hebernate-$USER 1>&2 || $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
-   sleep 10
-   sync
-   setvolume unmute
-   rm -f /tmp/.hebernate-$USER
-   (
-      soundfile="/usr/share/eliva-sounds/system-restored.mp3"
-      cat "$soundfile" >/dev/null &
-      timeout 30 mpg123 -q "$soundfile" || true
-      check_for_errors
-   ) &
-   exit
-   ;;
+    --suspend)
+	#warning-messages-elive suspend
+	setvolume mute
+	sync
+	if ! /usr/sbin/pm-suspend 2>/tmp/.hebernate-$USER 1>&2 ; then
+	    $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
+	fi
 
---hibernate|--hibernation|--hebernate)
+	sleep 10
+	sync
+	setvolume unmute
+	rm -f /tmp/.hebernate-$USER
+	(
+	    soundfile="/usr/share/eliva-sounds/system-restored.mp3"
+	    cat "$soundfile" >/dev/null &
+	    timeout 30 mpg123 -q "$soundfile" || true
+	    check_for_errors
+	) &
+	exit
+	;;
+
+    --hibernate|--hibernation|--hebernate)
 	if ! swapon -s | grep -v Filename | grep -q "/dev/" || ! cat /boot/grub/menu.lst | egrep "^kernel" | grep "elive" | grep -q "resume" ; then
-      $guitool --error --text=$"To Hibernate your Elive system you need a SWAP partition enabled from the installer of Elive. You should reinstall your Elive with a Swap Partition if you want to use Hibernation features."
-      exit
+	    $guitool --error --text="$( eval_gettext "To Hibernate your Elive system you need a SWAP partition enabled from the installer of Elive. You should reinstall your Elive with a Swap Partition if you want to use Hibernation features." )"
+
+	    exit
 	fi
 
-	parameter=$( cat /proc/cmdline | tr ' ' '\n' | grep resume | grep "/dev/" | sed 's|resume=||' | head -1 )
+	parameter="$( cat /proc/cmdline | tr ' ' '\n' | grep resume | grep "/dev/" | sed 's|resume=||' | head -1 )"
+
 	if [[ -z "$parameter" ]]; then
-		$guitool --error --text=$"We didn't caught the init boot parameter about the resume partition, although looks like you have it in your menu.lst. Please check it and/or report the bug to Elive"
-		exit
+	    $guitool --error --text="$( eval_gettext "We didn't caught the init boot parameter about the resume partition, although looks like you have it in your menu.lst. Please check it and/or report the bug to Elive" )"
+
+	    exit
 	fi
-	if ! swapon -s | grep -q ${parameter#swap:} ; then
-      $guitool --error --text=$"Looks like '${parameter#swap:}' is the swap partition that we want to use for resume the hibernation (set in your /boot/grub/menu.lst) but we are not using this swap partition right now (we use $(swapon -s | grep dev | awk '{print $1}')), it is needed to use this swap partition in order to dump the system to it and then do the restore from it\n\nNote: A simple reboot of the computer should fix this problem, if not, then report the bug to Elive"
-		exit
+	if ! swapon -s | grep -q "${parameter#swap:}" ; then
+	    $guitool --error --text="$( eval_gettext "Looks like '${parameter#swap:}' is the swap partition that we want to use for resume the hibernation (set in your /boot/grub/menu.lst) but we are not using this swap partition right now (we use $(swapon -s | grep dev | awk '{print $1}')), it is needed to use this swap partition in order to dump the system to it and then do the restore from it\n\nNote: A simple reboot of the computer should fix this problem, if not, then report the bug to Elive" )"
+
+	    exit
 	fi
 
-	echo $parameter > /sys/power/tuxonice/resume
+	echo "$parameter" > /sys/power/tuxonice/resume
 
-   #/usr/sbin/hibernate --force 2>/tmp/.hebernate-$USER 1>&2 || $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
-   #warning-messages-elive suspend
-   setvolume mute
-   sync
-   /usr/sbin/pm-hibernate 2>/tmp/.hebernate-$USER 1>&2 || $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
-   sleep 10
-   sync
-   setvolume unmute
-   rm -f /tmp/.hebernate-$USER
-   (
-      soundfile="/usr/share/eliva-sounds/system-restored.mp3"
-      cat "$soundfile" >/dev/null &
-      timeout 30 mpg123 -q "$soundfile" || true
-      check_for_errors
-   ) &
-   ;;
-*)
-   echo -e "\nElive Suspend/Hibernate tool\nUsage: $(basename $0) (--suspend|--hibernate)"
-   exit
-   ;;
+	#/usr/sbin/hibernate --force 2>/tmp/.hebernate-$USER 1>&2 || $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
+	#warning-messages-elive suspend
+
+	setvolume mute
+	sync
+
+	if ! /usr/sbin/pm-hibernate 2>/tmp/.hebernate-$USER 1>&2 ; then
+	    $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
+	fi
+
+	sleep 10
+	sync
+	setvolume unmute
+	rm -f "/tmp/.hebernate-$USER"
+	(
+	    soundfile="/usr/share/eliva-sounds/system-restored.mp3"
+	    cat "$soundfile" >/dev/null &
+	    timeout 30 mpg123 -q "$soundfile" || true
+	    check_for_errors
+	) &
+	;;
+    *)
+	echo -e "\nElive Suspend/Hibernate tool\nUsage: $(basename $0) (--suspend|--hibernate)"
+	exit
+	;;
 esac
