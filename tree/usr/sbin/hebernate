@@ -11,7 +11,7 @@ fi
 
 testing_purposes(){
     # TRANSLATORS: you should ignore entirely this translation, its only for my tests purposes in the new eltrans :)
-    echo -e "$( eval_gettext "This sentence is here only for TEST-4 purposes" )"
+    echo -e "$( eval_gettext "This sentence is here only for TEST-5 purposes" )"
 }
 
 check_for_errors(){
