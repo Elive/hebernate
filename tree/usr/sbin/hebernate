@@ -9,10 +9,6 @@ if (runlevel | grep -q [06]) || (pidof '/sbin/shutdown' > /dev/null); then
     exit 0
 fi
 
-testing_purposes(){
-    # TRANSLATORS: you should ignore entirely this translation, its only for my tests purposes in the new eltrans :)
-    echo -e "$( eval_gettext "This sentence is here only for testing purposes" )"
-}
 
 check_for_errors(){
     for i in 1 2 3 4 5
@@ -64,8 +60,10 @@ case $1 in
 	    exit
 	fi
 	if ! swapon -s | grep -q "${parameter#swap:}" ; then
-	    $guitool --error --text="$( eval_gettext "Looks like '${parameter#swap:}' is the swap partition that we want to use for resume the hibernation (set in your /boot/grub/menu.lst) but we are not using this swap partition right now (we use $(swapon -s | grep dev | awk '{print $1}')), it is needed to use this swap partition in order to dump the system to it and then do the restore from it\n\nNote: A simple reboot of the computer should fix this problem, if not, then report the bug to Elive" )"
 
+	    _message="$( printf "$( eval_gettext "Looks like '%s' is the swap partition that we want to use for resume the hibernation (set in your /boot/grub/menu.lst) but we are not using this swap partition right now (we use %s), it is needed to use this swap partition in order to dump the system to it and then do the restore from it\n\nNote: A simple reboot of the computer should fix this problem, if not, then report the bug to Elive" "${parameter#swap:}" "$(swapon -s | grep dev | awk '{print $1}')" )" )"
+
+	    $guitool --error --text="$_message"
 	    exit
 	fi
 
