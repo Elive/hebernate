@@ -67,7 +67,7 @@ case $1 in
             is_hebernate_failed=1
         fi
 
-        if ! grep -qsE "LINUX_DEFAULT.*resume=" /etc/defaul/grub ; then
+        if ! grep -qsE "LINUX_DEFAULT.*resume=" /etc/default/grub ; then
             el_speak_text -f "your bootloader needs to have the resume entry in order to use hibernation, we suggest to reinstall to theh last version of elive to make this working"
             sleep 14
             is_hebernate_failed=1
