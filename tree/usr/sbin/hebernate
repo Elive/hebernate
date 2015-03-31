@@ -31,13 +31,22 @@ case $1 in
     --suspend)
         #warning-messages-elive suspend
         setvolume mute
-        sync
+
+        # if not failed, is because we DID suspension correctly
         if ! /usr/sbin/pm-suspend 2>/tmp/.hebernate-$USER 1>&2 ; then
-            $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
+            setvolume unmute
+            #$guitool --error --text="$( cat /tmp/.hebernate-$USER )"
+            el_speak_text -f "this computer has not suspension features, going to reboot instead"
+            sleep 8
+            reboot
         fi
 
-        sleep 10
-        sync
+
+        # BACK from suspsension
+        #sync
+
+        #sleep 10
+        #sync
         setvolume unmute
         rm -f /tmp/.hebernate-$USER
         (
@@ -49,29 +58,40 @@ case $1 in
         exit
         ;;
 
+
     --hibernate|--hibernation|--hebernate)
-        if ! swapon -s | grep -v Filename | grep -q "/dev/" || ! cat /boot/grub/menu.lst | egrep "^kernel" | grep "elive" | grep -q "resume" ; then
-            $guitool --error --text="$( eval_gettext "To Hibernate your Elive system you need a SWAP partition enabled from the installer of Elive. You should reinstall your Elive with a Swap Partition if you want to use Hibernation features." )"
+        if ! swapon -s | grep -Ev "^Filename.*Type" | grep -q "/dev/" ; then
+            el_speak_text -f "you don't have a swap partition enabled, to use hibernation you need one"
+            sleep 8
+            is_hebernate_failed=1
+        fi
 
+        if ! grep -qsE "LINUX_DEFAULT.*resume=" /etc/defaul/grub ; then
+            el_speak_text -f "your bootloader needs to have the resume entry in order to use hibernation, we suggest to reinstall to theh last version of elive to make this working"
+            sleep 14
+            is_hebernate_failed=1
+        fi
+
+        if ((is_hebernate_failed)) ; then
             exit
         fi
 
-        parameter="$( cat /proc/cmdline | tr ' ' '\n' | grep resume | grep "/dev/" | sed 's|resume=||' | head -1 )"
+        #parameter="$( cat /proc/cmdline | tr ' ' '\n' | grep resume | grep "/dev/" | sed 's|resume=||' | head -1 )"
 
-        if [[ -z "$parameter" ]]; then
-            $guitool --error --text="$( eval_gettext "We didn't caught the init boot parameter about the resume partition, although looks like you have it in your menu.lst. Please check it and/or report the bug to Elive" )"
+        #if [[ -z "$parameter" ]]; then
+            #$guitool --error --text="$( eval_gettext "We didn't caught the init boot parameter about the resume partition, although looks like you have it in your menu.lst. Please check it and/or report the bug to Elive" )"
 
-            exit
-        fi
-        if ! swapon -s | grep -q "${parameter#swap:}" ; then
+            #exit
+        #fi
+        #if ! swapon -s | grep -q "${parameter#swap:}" ; then
 
-            _message="$( printf "$( eval_gettext "Looks like '%s' is the swap partition that we want to use for resume the hibernation (set in your /boot/grub/menu.lst) but we are not using this swap partition right now (we use %s), it is needed to use this swap partition in order to dump the system to it and then do the restore from it\n\nNote: A simple reboot of the computer should fix this problem, if not, then report the bug to Elive" "${parameter#swap:}" "$(swapon -s | grep dev | awk '{print $1}')" )" )"
+            #_message="$( printf "$( eval_gettext "Looks like '%s' is the swap partition that we want to use for resume the hibernation (set in your /boot/grub/menu.lst) but we are not using this swap partition right now (we use %s), it is needed to use this swap partition in order to dump the system to it and then do the restore from it\n\nNote: A simple reboot of the computer should fix this problem, if not, then report the bug to Elive" "${parameter#swap:}" "$(swapon -s | grep dev | awk '{print $1}')" )" )"
 
-            $guitool --error --text="$_message"
-            exit
-        fi
+            #$guitool --error --text="$_message"
+            #exit
+        #fi
 
-        echo "$parameter" > /sys/power/tuxonice/resume
+        #echo "$parameter" > /sys/power/tuxonice/resume
 
         #/usr/sbin/hibernate --force 2>/tmp/.hebernate-$USER 1>&2 || $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
         #warning-messages-elive suspend
@@ -80,11 +100,16 @@ case $1 in
         sync
 
         if ! /usr/sbin/pm-hibernate 2>/tmp/.hebernate-$USER 1>&2 ; then
-            $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
+            setvolume unmute
+            #$guitool --error --text="$( cat /tmp/.hebernate-$USER )"
+            el_speak_text -f "this computer has not hibernation features, going to reboot instead"
+            sleep 8
+            reboot
         fi
 
-        sleep 10
-        sync
+
+        #sleep 10
+        #sync
         setvolume unmute
         rm -f "/tmp/.hebernate-$USER"
         (
