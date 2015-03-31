@@ -17,7 +17,7 @@ fi
 check_for_errors(){
     for i in 1 2 3 4 5
     do
-        lines="$( dmesg | tail 30 | grep -i error | grep -qi sector )"
+        lines="$( dmesg | tail -n 30 | grep -i error | grep -qi sector )"
 
         if [[ "$lines" -gt "3" ]] ; then
             $guitool --info --text="$( eval_gettext "Warning: Looks like you've got errors on your hard disk after suspend/hibernate. Please open a terminal and run the command 'dmesg' to view them in detail. If you find errors on your hard disk, you should shutdown your computer and stop using these features immediately. Not doing this could damage your data seriously." )"
