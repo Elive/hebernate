@@ -30,11 +30,12 @@ check_for_errors(){
 case $1 in
     --suspend)
         #warning-messages-elive suspend
-        setvolume mute
+        #setvolume mute
+        sync
 
         # if not failed, is because we DID suspension correctly
         if ! /usr/sbin/pm-suspend 2>/tmp/.hebernate-$USER 1>&2 ; then
-            setvolume unmute
+            #setvolume unmute
             #$guitool --error --text="$( cat /tmp/.hebernate-$USER )"
             el_speak_text -f "this computer has not suspension features, going to reboot instead"
             sleep 8
@@ -47,13 +48,13 @@ case $1 in
 
         #sleep 10
         #sync
-        setvolume unmute
+        #setvolume unmute
         rm -f /tmp/.hebernate-$USER
         (
-        soundfile="/usr/share/sounds/elive/system-restored.mp3"
-        cat "$soundfile" >/dev/null &
-        timeout 30 mpg123 -q "$soundfile" || true
-        check_for_errors
+            soundfile="/usr/share/sounds/elive/system-restored.mp3"
+            cat "$soundfile" >/dev/null &
+            timeout 30 mpg123 -q "$soundfile" || true
+            check_for_errors
         ) &
         exit
         ;;
@@ -77,11 +78,11 @@ case $1 in
         fi
 
 
-        setvolume mute
+        #setvolume mute
         sync
 
         if ! /usr/sbin/pm-hibernate 2>/tmp/.hebernate-$USER 1>&2 ; then
-            setvolume unmute
+            #setvolume unmute
             #$guitool --error --text="$( cat /tmp/.hebernate-$USER )"
             el_speak_text -f "this computer has not hibernation features, going to reboot instead"
             sleep 8
@@ -91,13 +92,13 @@ case $1 in
 
         #sleep 10
         #sync
-        setvolume unmute
+        #setvolume unmute
         rm -f "/tmp/.hebernate-$USER"
         (
-        soundfile="/usr/share/sounds/elive/system-restored.mp3"
-        cat "$soundfile" >/dev/null &
-        timeout 30 mpg123 -q "$soundfile" || true
-        check_for_errors
+            soundfile="/usr/share/sounds/elive/system-restored.mp3"
+            cat "$soundfile" >/dev/null &
+            timeout 30 mpg123 -q "$soundfile" || true
+            check_for_errors
         ) &
         ;;
     *)
