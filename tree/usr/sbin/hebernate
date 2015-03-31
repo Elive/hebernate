@@ -76,25 +76,6 @@ case $1 in
             exit
         fi
 
-        #parameter="$( cat /proc/cmdline | tr ' ' '\n' | grep resume | grep "/dev/" | sed 's|resume=||' | head -1 )"
-
-        #if [[ -z "$parameter" ]]; then
-            #$guitool --error --text="$( eval_gettext "We didn't caught the init boot parameter about the resume partition, although looks like you have it in your menu.lst. Please check it and/or report the bug to Elive" )"
-
-            #exit
-        #fi
-        #if ! swapon -s | grep -q "${parameter#swap:}" ; then
-
-            #_message="$( printf "$( eval_gettext "Looks like '%s' is the swap partition that we want to use for resume the hibernation (set in your /boot/grub/menu.lst) but we are not using this swap partition right now (we use %s), it is needed to use this swap partition in order to dump the system to it and then do the restore from it\n\nNote: A simple reboot of the computer should fix this problem, if not, then report the bug to Elive" "${parameter#swap:}" "$(swapon -s | grep dev | awk '{print $1}')" )" )"
-
-            #$guitool --error --text="$_message"
-            #exit
-        #fi
-
-        #echo "$parameter" > /sys/power/tuxonice/resume
-
-        #/usr/sbin/hibernate --force 2>/tmp/.hebernate-$USER 1>&2 || $guitool --error --text="$( cat /tmp/.hebernate-$USER )"
-        #warning-messages-elive suspend
 
         setvolume mute
         sync
