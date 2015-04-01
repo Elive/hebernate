@@ -75,7 +75,8 @@ case $1 in
         fi
 
         if ((is_hebernate_failed)) ; then
-            exit
+            # reboot because e17 blocks if don't exit successfully
+            reboot
         fi
 
 
