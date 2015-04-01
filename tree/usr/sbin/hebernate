@@ -47,12 +47,13 @@ case $1 in
         #sync
 
         #sleep 10
+        sleep 1
         #sync
         #setvolume unmute
         rm -f /tmp/.hebernate-$USER
         (
             soundfile="/usr/share/sounds/elive/system-restored.mp3"
-            cat "$soundfile" >/dev/null &
+            precache "$soundfile" 2>/dev/null
             timeout 30 mpg123 -q "$soundfile" || true
             check_for_errors
         ) &
@@ -91,12 +92,13 @@ case $1 in
 
 
         #sleep 10
+        sleep 1
         #sync
         #setvolume unmute
         rm -f "/tmp/.hebernate-$USER"
         (
             soundfile="/usr/share/sounds/elive/system-restored.mp3"
-            cat "$soundfile" >/dev/null &
+            precache "$soundfile" 2>/dev/null
             timeout 30 mpg123 -q "$soundfile" || true
             check_for_errors
         ) &
