@@ -33,12 +33,20 @@ case $1 in
         #setvolume mute
         sync
 
+        # you cannot suspend in live mode, no matter what
+        if grep -q "boot=live" /proc/cmdline ; then
+            el_speak_text -f "you cannot suspend while you are in live mode, going to reboot"
+            sleep 5
+            reboot
+            sleep 10 # do not talk after this
+        fi
+
         # if not failed, is because we DID suspension correctly
         if ! /usr/sbin/pm-suspend 2>/tmp/.hebernate-$USER 1>&2 ; then
             #setvolume unmute
             #$guitool --error --text="$( cat /tmp/.hebernate-$USER )"
             el_speak_text -f "this computer has not suspension features, going to reboot instead"
-            sleep 8
+            sleep 9
             reboot
         fi
 
@@ -62,6 +70,15 @@ case $1 in
 
 
     --hibernate|--hibernation|--hebernate)
+
+        # reboot if we are in live mode, no matter what, hibernation not works
+        if grep -q "boot=live" /proc/cmdline ; then
+            el_speak_text -f "you cannot hibernate while you are in live mode"
+
+            sleep 6
+            is_hebernate_failed=1
+        fi
+
         if ! swapon -s | grep -Ev "^Filename.*Type" | grep -q "/dev/" ; then
             el_speak_text -f "you don't have a swap partition enabled, to use hibernation you need one"
             sleep 7
@@ -74,11 +91,6 @@ case $1 in
             is_hebernate_failed=1
         fi
 
-        if ((is_hebernate_failed)) ; then
-            # reboot because e17 blocks if don't exit successfully
-            reboot
-        fi
-
 
         #setvolume mute
         sync
@@ -87,7 +99,14 @@ case $1 in
             #setvolume unmute
             #$guitool --error --text="$( cat /tmp/.hebernate-$USER )"
             el_speak_text -f "this computer has not hibernation features, going to reboot instead"
-            sleep 8
+            sleep 9
+            is_hebernate_failed=1
+        fi
+
+
+        # reboot, we said
+        if ((is_hebernate_failed)) ; then
+            # reboot because e17 blocks if don't exit successfully
             reboot
         fi
 
