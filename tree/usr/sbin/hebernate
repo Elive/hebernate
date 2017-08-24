@@ -35,7 +35,7 @@ case $1 in
 
         # you cannot suspend in live mode, no matter what
         if grep -q "boot=live" /proc/cmdline ; then
-            el_speak_text -f "ignoring suspension in live mode, please install elive to use this feature correctly"
+            el_speak_text -f "ignoring suspension in live mode, please install elive in your computer to use this feature"
             sleep 7
             #reboot
             exit
@@ -77,7 +77,7 @@ case $1 in
         # reboot if we are in live mode, no matter what, hibernation not works
         if grep -q "boot=live" /proc/cmdline ; then
             #el_speak_text -f "you cannot hibernate while you are in live mode"
-            el_speak_text -f "ignoring hibernation in live mode, please install elive to use this feature correctly"
+            el_speak_text -f "ignoring suspension in live mode, please install elive in your computer to use this feature"
 
             sleep 9
             is_hebernate_failed=1
