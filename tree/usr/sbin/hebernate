@@ -65,7 +65,11 @@ case $1 in
         (
             soundfile="/usr/share/sounds/elive/system-restored.mp3"
             precache "$soundfile" 2>/dev/null
-            timeout 30 mpg123 -q "$soundfile" || true
+            if [[ -x "$(which mplayer)" ]] ; then
+                timeout 30 mplayer -noconfig all -really-quiet /usr/share/sounds/elive/system-restored.mp3
+            else
+                timeout 30 mpg123 -q "$soundfile" || true
+            fi
             check_for_errors
         ) &
         exit
@@ -131,7 +135,11 @@ case $1 in
         (
             soundfile="/usr/share/sounds/elive/system-restored.mp3"
             precache "$soundfile" 2>/dev/null
-            timeout 30 mpg123 -q "$soundfile" || true
+            if [[ -x "$(which mplayer)" ]] ; then
+                timeout 30 mplayer -noconfig all -really-quiet /usr/share/sounds/elive/system-restored.mp3
+            else
+                timeout 30 mpg123 -q "$soundfile" || true
+            fi
             check_for_errors
         ) &
         ;;
