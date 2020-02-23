@@ -68,6 +68,7 @@ case $1 in
             if [[ -x "$(which mplayer)" ]] ; then
                 timeout 30 mplayer -noconfig all -really-quiet /usr/share/sounds/elive/system-restored.mp3
             else
+                # FIXME: doesn't works with pulseaudio:
                 timeout 30 mpg123 -q "$soundfile" || true
             fi
             check_for_errors
@@ -126,6 +127,10 @@ case $1 in
             exit
         fi
 
+        # reload swap if possible, to have the desktop resonsive
+        swapoff -a 1>/dev/null 2>&1
+        swapon -a 1>/dev/null 2>&1
+
 
         #sleep 10
         sleep 1
@@ -138,6 +143,7 @@ case $1 in
             if [[ -x "$(which mplayer)" ]] ; then
                 timeout 30 mplayer -noconfig all -really-quiet /usr/share/sounds/elive/system-restored.mp3
             else
+                # FIXME: doesn't works with pulseaudio:
                 timeout 30 mpg123 -q "$soundfile" || true
             fi
             check_for_errors
