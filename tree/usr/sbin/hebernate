@@ -4,10 +4,13 @@ export TEXTDOMAIN="hebernate"
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 guitool="zenity"
 
-if (runlevel | grep -q [06]) || (pidof '/sbin/shutdown' > /dev/null); then
-    echo -e "Do not suspend/hibernate because system is shuting down"
-    exit 0
-fi
+
+check_if_already_shutdown_process(){
+    if (runlevel | grep -q [06]) || (pidof '/sbin/shutdown' > /dev/null); then
+        echo -e "Do not suspend/hibernate because system is shuting down"
+        exit 0
+    fi
+}
 
 #testing_purposes(){
 ## TRANSLATORS: you should ignore entirely this message, its only for my tests purposes in the new eltrans :)
@@ -31,6 +34,9 @@ case $1 in
     --suspend)
         #warning-messages-elive suspend
         #setvolume mute
+
+        check_if_already_shutdown_process
+
         sync
 
         # you cannot suspend in live mode, no matter what
@@ -78,6 +84,8 @@ case $1 in
 
 
     --hibernate|--hibernation|--hebernate)
+
+        check_if_already_shutdown_process
 
         # reboot if we are in live mode, no matter what, hibernation not works
         if grep -q "boot=live" /proc/cmdline ; then
