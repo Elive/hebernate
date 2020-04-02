@@ -30,8 +30,8 @@ check_for_errors(){
     done
 }
 
-case $1 in
-    --suspend)
+case "$1" in
+    --suspend|suspend)
         #warning-messages-elive suspend
         #setvolume mute
 
@@ -83,7 +83,7 @@ case $1 in
         ;;
 
 
-    --hibernate|--hibernation|--hebernate)
+    --hibernate|--hibernation|--hebernate|hibernate)
 
         check_if_already_shutdown_process
 
