@@ -7,9 +7,96 @@ el_make_environment
 TEXTDOMAIN="hebernate"
 export TEXTDOMAIN
 
+usage(){
+    # Usage
+    if [[ -z "${1}" ]] ; then
+        echo -e "Usage: $(basename $BASH_SOURCE) suspend|hibernate|stop|shutdown|reboot|lock"
+        echo -e ""
+        echo -e "Notes: 'stop' means suspending the system and hibernate it after a while (useful for when you don't know how much time you will stop the system, this should be the default stop of the system)"
+        echo -e ""
+        exit 1
+    fi
+}
+
+do_fallback(){
+    case "$1" in
+        reboot)
+            if ! /sbin/reboot ; then
+                if el_check_sudo_automated ; then
+                    el_sudo /sbin/reboot
+                else
+                    #gksu /sbin/reboot
+                    /sbin/reboot
+                fi
+            fi
+            ;;
+        shutdown)
+            if ! /sbin/poweroff ; then
+                if el_check_sudo_automated ; then
+                    el_sudo /sbin/poweroff
+                else
+                    #gksu /sbin/poweroff
+                    /sbin/poweroff
+                fi
+            fi
+            ;;
+        suspend|hibernate)
+            if el_check_sudo_automated ; then
+                el_sudo /sbin/hebernate "$1"
+            else
+                # seems like we should not need su
+                #gksu /sbin/hebernate "$1"
+                /sbin/hebernate "$1"
+            fi
+            ;;
+    esac
+}
+
+do_action(){
+    # TODO: exit from desktop? we should not need to do it
+
+    if systemctl --dry-run "$1" ; then
+        if systemctl "$1" ; then
+            # all good, exit
+            exit 0
+        else
+            el_warning "failed to run: systemctl '$1'"
+        fi
+    else
+        el_warning "failed to run: systemctl --dry-run '$1'"
+    fi
+
+    # maybe with sudo?
+    if el_check_sudo_automated ; then
+        if el_sudo systemctl --dry-run "$1" ; then
+            if el_sudo systemctl "$1" ; then
+                # all good, exit
+                exit 0
+            else
+                el_warning "failed to run: systemctl '$1' (sudo)"
+            fi
+        else
+            el_warning "failed to run: systemctl --dry-run '$1' (sudo)"
+        fi
+    else
+        el_warning "no privileges for el_sudo, implement a gksu feature instead?"
+    fi
+
+
+    # no way, run a fallback
+    do_fallback "$1"
+
+}
+
+
+
 main(){
     # pre {{{
     local arg
+
+    if [[ -z "$1" ]] ; then
+        usage
+    fi
 
     # }}}
 
@@ -18,9 +105,50 @@ main(){
         case "$arg" in
             suspend)
                 is_suspend=1
+                do_action "suspend"
+                ;;
+            hibernate)
+                is_hibernate=1
+                do_action "hibernate"
+                ;;
+            shutdown)
+                is_shutdown=1
+                do_action "poweroff"
+                ;;
+            reboot)
+                is_reboot=1
+                do_action "reboot"
+                ;;
+            lock)
+                is_lock=1
+                if [[ -x "$(which i3lock-fancy)" ]] ; then
+                    i3lock-fancy -g
+                    sleep 1 ; xset dpms force off
+                else
+                    if [[ -x "$(which i3lock)" ]] ; then
+                        i3lock -f -c 000000
+                        sleep 1 ; xset dpms force off
+                    fi
+                fi
+#revert() {
+  #xset dpms 0 0 0
+#}
+#trap revert HUP INT TERM
+#xset +dpms dpms 5 5 5
+#i3lock -n
+#revert
+
+                ;;
+            stop)
+                is_stop=1
+                do_action "suspend-then-hibernate"
+                ;;
+            *)
+                usage
                 ;;
         esac
     done
+
 
 }
 
