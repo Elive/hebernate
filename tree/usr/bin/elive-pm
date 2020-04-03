@@ -55,27 +55,31 @@ do_fallback(){
 do_action(){
     # TODO: exit from desktop? we should not need to do it
 
-    if systemctl "$1" 2>"$logs_error" ; then
+    if systemctl "$1" 2>>"$logs_error" ; then
         # all good, exit
         exit 0
     else
-        $guitool --error --text="$( cat "$logs_error" )"
+        is_failed=1
         el_warning "failed to run: systemctl '$1': $(cat "$logs_error" )"
     fi
 
     # maybe with sudo?
     if el_check_sudo_automated ; then
-        if el_sudo systemctl "$1" 2>"$logs_error" ; then
+        if el_sudo systemctl "$1" 2>>"$logs_error" ; then
             # all good, exit
             exit 0
         else
-            $guitool --error --text="$( cat "$logs_error" )"
+            is_failed=1
             el_warning "failed to run: systemctl '$1' (sudo): $(cat "$logs_error" )"
         fi
     else
         el_warning "no privileges for el_sudo, implement a gksu feature instead?"
     fi
 
+    # show errors if any
+    if ((is_failed)) && [[ -s "$logs_error" ]] ; then
+        $guitool --error --text="$( cat "$logs_error" | uniq )"
+    fi
 
     # no way, run a fallback
     do_fallback "$1"
