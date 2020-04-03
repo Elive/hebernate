@@ -180,7 +180,7 @@ inform_if_errors(){
 
         # HD data loss?
         if [[ "$lines_tmp" -gt "3" ]] ; then
-            guitool warning "$( eval_gettext "The following error messages have been found in your system. Inspect them in more detail to see if you really have an issue. If these features produce any issues or data loss, you should stop using suspend / hibernation or try it with a different kernel version. Not doing so may cause data loss." )\n\n$( echo "${lines}" | sort -u )"
+            guitool warning "$( eval_gettext "The following error messages have been found in your system. Inspect them in more detail to see if you really have an issue. If these features produce any issues or data loss, you should stop using this feature or try it with a different kernel version. Not doing so may cause data loss." )\n\n$( echo "${lines}" | sort -u )"
             el_warning "possible data loss recovering from suspension / hibernation: $( echo "$lines" | tail -10 )"
 
             break
