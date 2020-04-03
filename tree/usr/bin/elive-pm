@@ -175,12 +175,28 @@ inform_if_errors(){
 
     for i in 1 2 3 4 5
     do
-        lines="$( dmesg | tail -n 100 | grep -i error | grep -i sector )"
+        lines="$( dmesg | tail -n 300 )"
+        lines_tmp="$( echo "$lines" | grep -i error | grep -i sector )"
 
-        if [[ "$lines" -gt "3" ]] ; then
+        # HD data loss?
+        if [[ "$lines_tmp" -gt "3" ]] ; then
             guitool warning "$( eval_gettext "The following error messages have been found in your system. Inspect them in more detail to see if you really have an issue. If these features produce any issues or data loss, you should stop using suspend / hibernation or try it with a different kernel version. Not doing so may cause data loss." )\n\n$( echo "${lines}" | sort -u )"
+            el_warning "possible data loss recovering from suspension / hibernation: $( echo "$lines" | tail -10 )"
 
-            return
+            break
+        fi
+
+        # vbox errors:
+        lines_tmp="$( echo "$lines" | grep -iE "(vminfo.*error|VERR_NOT_SUPPORTED|error.*virtualbox)" )"
+        if [[ "$lines_tmp" -gt "3" ]] ; then
+            guitool warning "$( eval_gettext "Some error messages appear in your system logs. Maybe suspension / hibernation is not well supported in this machine. Please check your DMESG result to investigate better the possible issue." )"
+            #el_warning "possible vbox errors: $( echo "$lines" | tail -10 )"
+        fi
+
+        lines_tmp="$( echo "$lines" | grep -iE "\[ cut here \]" )"
+        if [[ "$lines_tmp" -ge "1" ]] ; then
+            guitool warning "$( eval_gettext "Please check your system logs using DMESG. It is possible that there's some issues after recovering your computer." )"
+            el_warning "possible backtrace founds: $( echo "$lines" | tail -30 )"
         fi
 
         sleep 3
@@ -361,9 +377,9 @@ do_action(){
             fi
 
             # hibernation seems to require an e16 restart, at least in vbox:
-            if [[ "$action" = "hibernate" ]] && [[ -n "$EROOT" ]] ; then
-                eesh restart
-            fi
+            #if [[ "$action" = "hibernate" ]] && [[ -n "$EROOT" ]] ; then
+                #eesh restart
+            #fi
             ;;
     esac
 
@@ -386,6 +402,9 @@ main(){
     if pidof systemd 1>/dev/null 2>&1 ; then
         is_systemd=1
     fi
+
+    el_config_get
+
     # }}}
 
     for arg in "$@"
