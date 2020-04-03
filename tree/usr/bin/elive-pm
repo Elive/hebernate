@@ -59,6 +59,7 @@ do_action(){
         # all good, exit
         exit 0
     else
+        $guitool --error --text="$( cat "$logs_error" )"
         el_warning "failed to run: systemctl '$1': $(cat "$logs_error" )"
     fi
 
@@ -68,6 +69,7 @@ do_action(){
             # all good, exit
             exit 0
         else
+            $guitool --error --text="$( cat "$logs_error" )"
             el_warning "failed to run: systemctl '$1' (sudo): $(cat "$logs_error" )"
         fi
     else
