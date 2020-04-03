@@ -291,7 +291,8 @@ do_action(){
         hibernate)
             # check if we have a resume configuration
             if ! grep -qsE "LINUX_DEFAULT.*resume=" /etc/default/grub ; then
-                guitool warning "$( eval_gettext "Your grub configuration doesn't include the swap space where to perform hibernation. Hibernation may probably not work. If you want to use it you should reinstall Elive and add a swap partition." )"
+                guitool error "$( eval_gettext "Your grub configuration doesn't include the swap space where to perform hibernation. If you want to have hibernation you should reinstall Elive and add a swap partition." )"
+                exit
             fi
             # check for using swap space:
             if [[ "$( LC_ALL="$EL_LC_EN" free -m | grep -i "^Swap:" | awk '{print $2}' )" = 0 ]] ; then
