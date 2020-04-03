@@ -189,7 +189,7 @@ inform_if_errors(){
         # vbox errors:
         lines_tmp="$( echo "$lines" | grep -iE "(vminfo.*error|VERR_NOT_SUPPORTED|error.*virtualbox)" )"
         if [[ "$lines_tmp" -gt "3" ]] ; then
-            guitool warning "$( eval_gettext "Some error messages appear in your system logs. Maybe suspension / hibernation is not well supported in this machine. Please check your DMESG result to investigate better the possible issue." )"
+            guitool warning "$( eval_gettext "Please check your system logs using DMESG. It is possible that your virtual environment doesn't supports well the suspension or hibernation features." )"
             #el_warning "possible vbox errors: $( echo "$lines" | tail -10 )"
         fi
 
