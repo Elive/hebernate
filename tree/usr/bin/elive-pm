@@ -131,7 +131,7 @@ check_and_inform_when_processes_running(){
     fi
 
     # other possible X processes:
-    for watcher in mkdeb apt apt-get dpkg fsck sync umount
+    for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount
     do
         if ps aux | grep -v grep | grep -v "$$" | grep -v "$(basename $0) $watcher" | grep -vE "(vim|gvim|emacs|scite|geany).*${watcher}" | grep -qE "([[:digit:]] ${watcher} |[[:digit:]] ${watcher}$|[[:digit:]] .*bin/${watcher} |[[:digit:]] .*bin/${watcher}$)" ; then
 
