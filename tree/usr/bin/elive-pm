@@ -68,14 +68,102 @@ guitool(){
     esac
 }
 
-check_and_ask_when_processes_running(){
-    # TODO
-    guitool info "not implemented yet"
+apt_dpkg_wait(){
+    local is_waiting i
+    i=0
+
+    tput sc
+    while fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock  >/dev/null 2>&1 ; do
+        case $(($i % 4)) in
+            0 ) j="-" ;;
+            1 ) j="\\" ;;
+            2 ) j="|" ;;
+            3 ) j="/" ;;
+        esac
+        tput rc
+        echo -en "\r[$j] Waiting for other software managers to finish..."
+        is_waiting=1
+
+        LC_ALL=C  sleep 0.5
+        ((i=i+1))
+    done
+
+    # make sure that dpkg/apt still not running
+    if ((is_waiting)) ; then
+        unset is_waiting
+        LC_ALL=C  sleep 3
+        # recursively call it again
+        $FUNCNAME
+    fi
+}
+
+
+check_and_inform_when_processes_running(){
+    # pre {{{
+    local watcher
+
+    local message_wait_processes_title
+    message_wait_processes_title="$( printf "$( eval_gettext "Waiting for processes to finish" )" "" )"
+
+    local message_wait_processes_generic
+    message_wait_processes_generic="$( printf "$( eval_gettext "Your computer will shutdown after some remaining processes finish" )" "" )"
+
+
+    # - pre }}}
+
+    # kill possible useless ones {{{
+    for i in tumblerd mpg123 mplayer smplayer vlc rage_thumb
+    do
+        killall "$i"
+        killall -9 "$i"
+    done
+    # - kill possible useless ones }}}
+
+    # apt / dpkg processes
+    if fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock  1>/dev/null 2>&1 ; then
+        local message_wait_processes
+        message_wait_processes="$( printf "$( eval_gettext "Some package processes are running, probably an upgrade of the system. Your computer shutdown will be executed after these processes are finished." )" "" )"
+
+        el_notify_user_important "$message_wait_processes_title" "$message_wait_processes"
+
+        # and wait before to proceed:
+        apt_dpkg_wait
+    fi
+
+    # other possible X processes:
+    for watcher in mkdeb apt apt-get dpkg fsck sync umount
+    do
+        if ps aux | grep -v grep | grep -v "$$" | grep -v "$(basename $0) $watcher" | grep -vE "(vim|gvim|emacs|scite|geany).*${watcher}" | grep -qE "([[:digit:]] ${watcher} |[[:digit:]] ${watcher}$|[[:digit:]] .*bin/${watcher} |[[:digit:]] .*bin/${watcher}$)" ; then
+
+            # TODO: do we have access to the desktop when trying to shutdown? if not, tell the user from other ways:
+            el_speak_text "waiting for $watcher"
+
+            # TODO: temporal report:
+            el_warning "waiting for process: $watcher"
+            #log_msg... ?
+
+            el_notify_user_important "$message_wait_processes_title" "${message_wait_processes_generic}:\n\n$watcher"
+
+            waitfor $watcher
+        fi
+    done
 }
 
 check_if_already_shutdown_process(){
     # TODO: implement more of them
-    if (runlevel | grep -q [06]) || (pidof '/sbin/shutdown' > /dev/null) || (pidof '/sbin/reboot' > /dev/null) || (pidof '/usr/sbin/shutdown' > /dev/null) || (pidof '/usr/sbin/reboot' > /dev/null); then
+    if \
+        pidof '/sbin/pm-suspend' 1>/dev/null 2>&1 || \
+        pidof '/sbin/pm-suspend-hybrid' 1>/dev/null 2>&1 || \
+        pidof '/sbin/pm-hibernate' 1>/dev/null 2>&1 || \
+        pidof '/usr/sbin/pm-suspend' 1>/dev/null 2>&1 || \
+        pidof '/usr/sbin/pm-suspend-hybrid' 1>/dev/null 2>&1 || \
+        pidof '/usr/sbin/pm-hibernate' 1>/dev/null 2>&1 || \
+        pidof '/sbin/shutdown' 1>/dev/null 2>&1 || \
+        pidof '/sbin/reboot' 1>/dev/null 2>&1 || \
+        pidof '/usr/sbin/shutdown' 1>/dev/null 2>&1 || \
+        pidof '/usr/sbin/reboot' 1>/dev/null 2>&1 || \
+        runlevel | grep -qs "[06]" ; then
+
         return 1
     else
         return 0
@@ -99,6 +187,29 @@ inform_if_errors(){
     done
 }
 
+do_desktop_lock(){
+    # e16
+    if [[ -n "$EROOT" ]] ; then
+        if [[ -x "$(which i3lock-fancy)" ]] ; then
+            xset +dpms dpms 5 5 5
+            xset dpms 0 0 0
+            i3lock-fancy -g -n
+            #sleep 1 ; xset dpms force off
+        else
+            if [[ -x "$(which i3lock)" ]] ; then
+                xset +dpms dpms 5 5 5
+                i3lock -f -c 000000 -n
+                xset dpms 0 0 0
+                #sleep 1 ; xset dpms force off
+            fi
+        fi
+    else
+        if [[ -n "$E_START" ]] ; then
+            #enlightenment_remove -lock
+            enlightenment_remove -desktop-lock
+        fi
+    fi
+}
 
 do_fallback(){
     case "$1" in
@@ -149,16 +260,39 @@ do_action(){
         exit
     fi
 
+    # live mode?
+    local message_live_disabled
+    message_live_disabled="$( printf "$( eval_gettext "You cannot perform a suspension of your computer while you are using Elive in Live mode. You need to install Elive in your computer to use this feature." )" "" )"
+
+    if grep -q "boot=live" /proc/cmdline ; then
+        case "$action" in
+            suspend|hibernate|stop)
+                el_notify_user_important "Live mode detected" "$message_live_disabled"
+                exit
+                ;;
+        esac
+    fi
+
     # wait for possible proccesses running
     case "$action" in
         suspend|hibernate|stop|lock)
             true
             ;;
         shutdown|poweroff|reboot)
-            check_and_ask_when_processes_running
+            check_and_inform_when_processes_running
             ;;
         *)
             el_warning "not implemented $action"
+            ;;
+    esac
+
+    # check and infor for possible things required
+    case "$action" in
+        hibernate)
+            # check if we have a resume configuration
+            if ! grep -qsE "LINUX_DEFAULT.*resume=" /etc/default/grub ; then
+                guitool warning "$( eval_gettext "Your grub configuration doesn't include the swap space where to perform hibernation. Hibernation may probably not work. If you want to use it you should reinstall Elive and add a swap partition." )"
+            fi
             ;;
     esac
 
@@ -183,16 +317,13 @@ do_action(){
                     el_warning "failed to run: systemctl '$action' (sudo): $(cat "$logs_error" )"
                 fi
             else
+                is_failed=1
                 el_warning "no privileges for el_sudo, implement a gksu feature instead?"
             fi
-
-            is_failed=1
-            el_warning "failed to run: systemctl '$action': $(cat "$logs_error" )"
         fi
     else
         do_fallback "$action"
     fi
-
 
     # errors? {{{
     # show errors if any
@@ -200,10 +331,33 @@ do_action(){
         guitool error "$( cat "$logs_error" | uniq )"
     fi
 
+
     # - errors? }}}
+
+
+
 
     # BACK from suspsension
 
+
+    case "$action" in
+        suspend|hibernate|stop|lock)
+            # check for errors
+            inform_if_errors &
+
+            # play audio of system restored
+            hour="$(date +%k)"
+            if [[ "${hour}" -lt "21" ]] && [[ "$hour" -gt "8" ]] ; then
+                soundfile="/usr/share/sounds/elive/system-restored.mp3"
+                precache "$soundfile" 2>/dev/null
+                if [[ -x "$(which mplayer)" ]] ; then
+                    ( timeout 30 mplayer -noconfig all -really-quiet "$soundfile" & )
+                else
+                    el_speak_text "welcome back to ailive"
+                fi
+            fi
+            ;;
+    esac
 
 }
 
@@ -220,10 +374,10 @@ main(){
     logs_error="$( mktemp )"
     el_add_on_exit  rm -f "$logs_error"
 
-    # }}}
     if pidof systemd 1>/dev/null 2>&1 ; then
         is_systemd=1
     fi
+    # }}}
 
     for arg in "$@"
     do
@@ -246,23 +400,7 @@ main(){
                 ;;
             lock)
                 is_lock=1
-                if [[ -x "$(which i3lock-fancy)" ]] ; then
-                    i3lock-fancy -g
-                    sleep 1 ; xset dpms force off
-                else
-                    if [[ -x "$(which i3lock)" ]] ; then
-                        i3lock -f -c 000000
-                        sleep 1 ; xset dpms force off
-                    fi
-                fi
-#revert() {
-  #xset dpms 0 0 0
-#}
-#trap revert HUP INT TERM
-#xset +dpms dpms 5 5 5
-#i3lock -n
-#revert
-
+                do_desktop_lock
                 ;;
             stop)
                 is_stop=1
@@ -274,6 +412,8 @@ main(){
         esac
     done
 
+
+    wait
 
 }
 
