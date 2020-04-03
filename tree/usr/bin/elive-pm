@@ -309,6 +309,7 @@ do_action(){
             # check for using swap space:
             if [[ "$( LC_ALL="$EL_LC_EN" free -m | grep -i "^Swap:" | awk '{print $2}' )" = 0 ]] ; then
                 guitool warning "$( eval_gettext "It seems like you are not using a swap space, which is required to hibernate your computer. If hibernation doesn't work, you should reinstall Elive and add a swap partition to use this feature." )"
+                exit
             fi
             ;;
     esac
