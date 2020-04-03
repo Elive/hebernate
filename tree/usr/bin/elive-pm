@@ -114,8 +114,8 @@ check_and_inform_when_processes_running(){
     # kill possible useless ones {{{
     for i in tumblerd mpg123 mplayer smplayer vlc rage_thumb
     do
-        killall "$i"
-        killall -9 "$i"
+        killall "$i"     1>/dev/null 2>&1
+        killall -9 "$i"  1>/dev/null 2>&1
     done
     # - kill possible useless ones }}}
 
@@ -139,7 +139,7 @@ check_and_inform_when_processes_running(){
             el_speak_text "waiting for $watcher"
 
             # TODO: temporal report:
-            el_warning "waiting for process: $watcher"
+            el_warning "$(basename $0): waiting for process: $watcher"
             #log_msg... ?
 
             el_notify_user_important "$message_wait_processes_title" "${message_wait_processes_generic}:\n\n$watcher"
@@ -207,16 +207,12 @@ do_desktop_lock(){
     # e16
     if [[ -n "$EROOT" ]] ; then
         if [[ -x "$(which i3lock-fancy)" ]] ; then
-            xset +dpms dpms 5 5 5
-            xset dpms 0 0 0
-            i3lock-fancy -g -n
-            #sleep 1 ; xset dpms force off
+            ( sleep 2 ; xset dpms force off ; )
+            i3lock-fancy -g
         else
             if [[ -x "$(which i3lock)" ]] ; then
-                xset +dpms dpms 5 5 5
-                i3lock -f -c 000000 -n
-                xset dpms 0 0 0
-                #sleep 1 ; xset dpms force off
+                ( sleep 2 ; xset dpms force off ; )
+                i3lock -f -c 000000
             fi
         fi
     else
