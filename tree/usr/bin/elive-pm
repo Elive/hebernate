@@ -278,7 +278,7 @@ do_action(){
 
     if grep -q "boot=live" /proc/cmdline ; then
         case "$action" in
-            suspend|hibernate|stop)
+            suspend|hibernate|suspend-then-hibernate)
                 el_notify_user_important "Live mode detected" "$message_live_disabled"
                 exit
                 ;;
@@ -287,7 +287,7 @@ do_action(){
 
     # wait for possible proccesses running
     case "$action" in
-        suspend|hibernate|stop|lock)
+        suspend|hibernate|suspend-then-hibernate|lock)
             true
             ;;
         shutdown|poweroff|reboot)
@@ -356,7 +356,7 @@ do_action(){
     #
 
     case "$action" in
-        suspend|hibernate|stop|lock)
+        suspend|hibernate|suspend-then-hibernate)
             # check for errors
             inform_if_errors &
 
