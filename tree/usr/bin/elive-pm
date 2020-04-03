@@ -55,28 +55,20 @@ do_fallback(){
 do_action(){
     # TODO: exit from desktop? we should not need to do it
 
-    if systemctl --dry-run "$1" ; then
-        if systemctl "$1" ; then
-            # all good, exit
-            exit 0
-        else
-            el_warning "failed to run: systemctl '$1'"
-        fi
+    if systemctl "$1" 2>"$logs_error" ; then
+        # all good, exit
+        exit 0
     else
-        el_warning "failed to run: systemctl --dry-run '$1'"
+        el_warning "failed to run: systemctl '$1': $(cat "$logs_error" )"
     fi
 
     # maybe with sudo?
     if el_check_sudo_automated ; then
-        if el_sudo systemctl --dry-run "$1" ; then
-            if el_sudo systemctl "$1" ; then
-                # all good, exit
-                exit 0
-            else
-                el_warning "failed to run: systemctl '$1' (sudo)"
-            fi
+        if el_sudo systemctl "$1" 2>"$logs_error" ; then
+            # all good, exit
+            exit 0
         else
-            el_warning "failed to run: systemctl --dry-run '$1' (sudo)"
+            el_warning "failed to run: systemctl '$1' (sudo): $(cat "$logs_error" )"
         fi
     else
         el_warning "no privileges for el_sudo, implement a gksu feature instead?"
@@ -97,6 +89,9 @@ main(){
     if [[ -z "$1" ]] ; then
         usage
     fi
+
+    logs_error="$( mktemp )"
+    el_add_on_exit  rm -f "$logs_error"
 
     # }}}
 
