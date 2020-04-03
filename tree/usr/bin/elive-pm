@@ -245,13 +245,22 @@ do_fallback(){
                 fi
             fi
             ;;
-        suspend|hibernate)
+        hibernate|suspend-then-hibernate)
             if el_check_sudo_automated ; then
-                el_sudo /sbin/hebernate "$1"
+                el_sudo /sbin/pm-hibernate
             else
                 # seems like we should not need su
                 #gksu /sbin/hebernate "$1"
-                /sbin/hebernate "$1"
+                /sbin/pm-hibernate
+            fi
+            ;;
+        suspend)
+            if el_check_sudo_automated ; then
+                el_sudo /sbin/pm-suspend
+            else
+                # seems like we should not need su
+                #gksu /sbin/hebernate "$1"
+                /sbin/pm-suspend
             fi
             ;;
     esac
@@ -377,6 +386,12 @@ do_action(){
             #if [[ "$action" = "hibernate" ]] && [[ -n "$EROOT" ]] ; then
                 #eesh restart
             #fi
+            if [[ "$action" = "hibernate" ]] && el_check_sudo_automated ; then
+                # reload swap if possible, to have the desktop resonsive
+                sleep 5 ; sync
+                el_sudo swapoff -a 1>/dev/null 2>&1
+                el_sudo swapon -a 1>/dev/null 2>&1
+            fi
             ;;
     esac
 
