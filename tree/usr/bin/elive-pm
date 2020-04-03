@@ -119,12 +119,30 @@ check_and_inform_when_processes_running(){
     done
     # - kill possible useless ones }}}
 
+    # TODO: temporal checks: these are meant to be other poweroff processes, we should simply exit in case that they are (already) running?
+    if \
+        pidof -x 'xfce4-power-manager' 1>/dev/null 2>&1 || \
+        pidof -x 'mate-power-manager' 1>/dev/null 2>&1 || \
+        pidof -x 'dalston-power-applet' 1>/dev/null 2>&1 || \
+        pidof -x 'gnome-power-manager' 1>/dev/null 2>&1 || \
+        pidof -x 'kpowersave' 1>/dev/null 2>&1 || \
+        pidof -x 'guidance-power-manager.py' 1>/dev/null 2>&1 ; then
+        # just report, because we don't know if we should ingore them or not
+        el_warning "another poweroff system running?"
+
+        #( guitool warning "Seems like we have other poweroff services already running?"  & )
+    fi
+
+
     # apt / dpkg processes
     if fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock  1>/dev/null 2>&1 ; then
         local message_wait_processes
         message_wait_processes="$( printf "$( eval_gettext "Some package processes are running, probably an upgrade of the system. Your computer shutdown will be executed after these processes are finished." )" "" )"
 
-        el_notify_user_important "$message_wait_processes_title" "$message_wait_processes"
+        # seems like desktop is off, so we cannot send a notify message?
+        #el_notify_user_important "$message_wait_processes_title" "$message_wait_processes"
+        ( guitool info "$message_wait_processes" & )
+        #el_speak_text "waiting packages process to finish"
 
         # and wait before to proceed:
         apt_dpkg_wait
@@ -135,33 +153,38 @@ check_and_inform_when_processes_running(){
     do
         if ps aux | grep -v grep | grep -v "$$" | grep -v "$(basename $0) $watcher" | grep -vE "(vim|gvim|emacs|scite|geany).*${watcher}" | grep -qE "([[:digit:]] ${watcher} |[[:digit:]] ${watcher}$|[[:digit:]] .*bin/${watcher} |[[:digit:]] .*bin/${watcher}$)" ; then
 
-            # TODO: do we have access to the desktop when trying to shutdown? if not, tell the user from other ways:
-            el_speak_text "waiting for $watcher"
+            local message_waitingfor
+            message_waitingfor="$( printf "$( eval_gettext "Some processes are still running. Waiting for them to finish:" )" "" )"
+
+            ( guitool info "${message_waitingfor} $watcher" & )
+
+            #el_speak_text "Please wait, some processes are still running. Wating for $watcher"
 
             # TODO: temporal report:
             el_warning "$(basename $0): waiting for process: $watcher"
             #log_msg... ?
 
-            el_notify_user_important "$message_wait_processes_title" "${message_wait_processes_generic}:\n\n$watcher"
+            #el_notify_user_important "$message_wait_processes_title" "${message_wait_processes_generic}:\n\n$watcher"
+            ( guitool info "${message_wait_processes_title}. ${message_wait_processes_generic}:\n\n$watcher" & )
 
             waitfor $watcher
         fi
     done
+
 }
 
 check_if_already_shutdown_process(){
-    # TODO: implement more of them
     if \
-        pidof '/sbin/pm-suspend' 1>/dev/null 2>&1 || \
-        pidof '/sbin/pm-suspend-hybrid' 1>/dev/null 2>&1 || \
-        pidof '/sbin/pm-hibernate' 1>/dev/null 2>&1 || \
-        pidof '/usr/sbin/pm-suspend' 1>/dev/null 2>&1 || \
-        pidof '/usr/sbin/pm-suspend-hybrid' 1>/dev/null 2>&1 || \
-        pidof '/usr/sbin/pm-hibernate' 1>/dev/null 2>&1 || \
-        pidof '/sbin/shutdown' 1>/dev/null 2>&1 || \
-        pidof '/sbin/reboot' 1>/dev/null 2>&1 || \
-        pidof '/usr/sbin/shutdown' 1>/dev/null 2>&1 || \
-        pidof '/usr/sbin/reboot' 1>/dev/null 2>&1 || \
+        pidof -x '/sbin/pm-suspend' 1>/dev/null 2>&1 || \
+        pidof -x '/sbin/pm-suspend-hybrid' 1>/dev/null 2>&1 || \
+        pidof -x '/sbin/pm-hibernate' 1>/dev/null 2>&1 || \
+        pidof -x '/usr/sbin/pm-suspend' 1>/dev/null 2>&1 || \
+        pidof -x '/usr/sbin/pm-suspend-hybrid' 1>/dev/null 2>&1 || \
+        pidof -x '/usr/sbin/pm-hibernate' 1>/dev/null 2>&1 || \
+        pidof -x '/sbin/shutdown' 1>/dev/null 2>&1 || \
+        pidof -x '/sbin/reboot' 1>/dev/null 2>&1 || \
+        pidof -x '/usr/sbin/shutdown' 1>/dev/null 2>&1 || \
+        pidof -x '/usr/sbin/reboot' 1>/dev/null 2>&1 || \
         /sbin/runlevel | grep -qs "[06]" ; then
 
         return 1
@@ -267,7 +290,6 @@ do_fallback(){
 }
 
 do_action(){
-    # TODO: exit from desktop? we should not need to do it
     # pre {{{
     local action
 
@@ -280,6 +302,7 @@ do_action(){
         guitool info "$( eval_gettext "Ignoring action, system is already shuting down" )"
         exit
     fi
+
 
     # live mode?
     local message_live_disabled
@@ -364,6 +387,8 @@ do_action(){
     #
     # BACK from suspsension
     #
+
+    sync
 
     case "$action" in
         suspend|hibernate|suspend-then-hibernate)
