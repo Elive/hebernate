@@ -3,9 +3,9 @@ SOURCE="$0"
 source /usr/lib/elive-tools/functions
 REPORTS="1"
 el_make_environment
-#. gettext.sh
-#TEXTDOMAIN="hebernate"
-#export TEXTDOMAIN
+. gettext.sh
+TEXTDOMAIN="hebernate"
+export TEXTDOMAIN
 
 usage(){
     # Usage
@@ -17,6 +17,88 @@ usage(){
         exit 1
     fi
 }
+
+guitool(){
+    local mode message
+    mode="$1"
+    shift
+    message="$1"
+    shift
+
+    case "$mode" in
+        question)
+            if [[ -n "$DISPLAY" ]] ; then
+                if $guitool --question --text="$message" ; then
+                    return 0
+                else
+                    return 1
+                fi
+            else
+                if el_confirm "$message" ; then
+                    return 0
+                else
+                    return 1
+                fi
+            fi
+            ;;
+        warning)
+            if [[ -n "$DISPLAY" ]] ; then
+                $guitool --warning --text="$message"
+            else
+                el_warning "$message"
+            fi
+            ;;
+        error)
+            if [[ -n "$DISPLAY" ]] ; then
+                $guitool --error --text="$message"
+            else
+                el_error "$message"
+            fi
+            ;;
+        info)
+            if [[ -n "$DISPLAY" ]] ; then
+                $guitool --info --text="$message"
+            else
+                el_info "$message"
+            fi
+            ;;
+        *)
+            el_error "unknown action for $FUNCNAME ($mode)"
+            ;;
+    esac
+}
+
+check_and_ask_when_processes_running(){
+    # TODO
+    guitool info "not implemented yet"
+}
+
+check_if_already_shutdown_process(){
+    # TODO: implement more of them
+    if (runlevel | grep -q [06]) || (pidof '/sbin/shutdown' > /dev/null) || (pidof '/sbin/reboot' > /dev/null) || (pidof '/usr/sbin/shutdown' > /dev/null) || (pidof '/usr/sbin/reboot' > /dev/null); then
+        return 1
+    else
+        return 0
+    fi
+}
+
+inform_if_errors(){
+    local lines
+
+    for i in 1 2 3 4 5
+    do
+        lines="$( dmesg | tail -n 100 | grep -i error | grep -i sector )"
+
+        if [[ "$lines" -gt "3" ]] ; then
+            guitool warning "$( eval_gettext "The following error messages have been found in your system. Inspect them in more detail to see if you really have an issue. If these features produce any issues or data loss, you should stop using suspend / hibernation or try it with a different kernel version. Not doing so may cause data loss." )\n\n$( echo "${lines}" | sort -u )"
+
+            return
+        fi
+
+        sleep 3
+    done
+}
+
 
 do_fallback(){
     case "$1" in
@@ -54,35 +136,74 @@ do_fallback(){
 
 do_action(){
     # TODO: exit from desktop? we should not need to do it
+    # pre {{{
+    local action
 
-    if systemctl "$1" 2>>"$logs_error" ; then
-        # all good, exit
-        exit 0
-    else
-        is_failed=1
-        el_warning "failed to run: systemctl '$1': $(cat "$logs_error" )"
+    action="$1"
+    shift
+
+    # - pre }}}
+    # checks {{{
+    if ! check_if_already_shutdown_process ; then
+        guitool info "$( eval_gettext "Ignoring action, system is already shuting down" )"
+        exit
     fi
 
-    # maybe with sudo?
-    if el_check_sudo_automated ; then
-        if el_sudo systemctl "$1" 2>>"$logs_error" ; then
+    # wait for possible proccesses running
+    case "$action" in
+        suspend|hibernate|stop|lock)
+            true
+            ;;
+        shutdown|poweroff|reboot)
+            check_and_ask_when_processes_running
+            ;;
+        *)
+            el_warning "not implemented $action"
+            ;;
+    esac
+
+    # - checks }}}
+    # run
+    sync
+
+    if ((is_systemd)) ; then
+        if systemctl "$action" 2>>"$logs_error" ; then
             # all good, exit
-            exit 0
+            #exit 0
+            true
         else
+            # maybe with sudo?
+            if el_check_sudo_automated ; then
+                if el_sudo systemctl "$action" 2>>"$logs_error" ; then
+                    # all good, exit
+                    #exit 0
+                    true
+                else
+                    is_failed=1
+                    el_warning "failed to run: systemctl '$action' (sudo): $(cat "$logs_error" )"
+                fi
+            else
+                el_warning "no privileges for el_sudo, implement a gksu feature instead?"
+            fi
+
             is_failed=1
-            el_warning "failed to run: systemctl '$1' (sudo): $(cat "$logs_error" )"
+            el_warning "failed to run: systemctl '$action': $(cat "$logs_error" )"
         fi
     else
-        el_warning "no privileges for el_sudo, implement a gksu feature instead?"
+        do_fallback "$action"
     fi
 
+
+    # errors? {{{
     # show errors if any
     if ((is_failed)) && [[ -s "$logs_error" ]] ; then
-        $guitool --error --text="$( cat "$logs_error" | uniq )"
+        guitool error "$( cat "$logs_error" | uniq )"
     fi
 
-    # no way, run a fallback
-    do_fallback "$1"
+    # - errors? }}}
+
+    # BACK from suspsension
+
 
 }
 
@@ -100,6 +221,9 @@ main(){
     el_add_on_exit  rm -f "$logs_error"
 
     # }}}
+    if pidof systemd 1>/dev/null 2>&1 ; then
+        is_systemd=1
+    fi
 
     for arg in "$@"
     do
