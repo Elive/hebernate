@@ -339,11 +339,9 @@ do_action(){
 
     # - errors? }}}
 
-
-
-
+    #
     # BACK from suspsension
-
+    #
 
     case "$action" in
         suspend|hibernate|stop|lock)
@@ -361,8 +359,14 @@ do_action(){
                     el_speak_text "welcome back to ailive"
                 fi
             fi
+
+            # hibernation seems to require an e16 restart, at least in vbox:
+            if [[ "$action" = "hibernate" ]] && [[ -n "$EROOT" ]] ; then
+                eesh restart
+            fi
             ;;
     esac
+
 
 }
 
