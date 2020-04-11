@@ -491,7 +491,7 @@ main(){
                 is_hibernate=1
                 do_action "hibernate"
                 ;;
-            shutdown)
+            shutdown|poweroff|halt)
                 is_shutdown=1
                 do_action "poweroff"
                 ;;
