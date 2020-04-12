@@ -143,6 +143,10 @@ check_and_inform_when_processes_running(){
 
     # - pre }}}
 
+    local message_waitingfor
+    message_waitingfor="$( printf "$( eval_gettext "Some processes are still running. Waiting for them to finish:" )" "" )"
+
+
     # kill possible useless ones {{{
     for i in tumblerd mpg123 mplayer smplayer vlc rage_thumb
     do
@@ -185,9 +189,6 @@ check_and_inform_when_processes_running(){
     do
         if ps aux | grep -v grep | grep -v "$$" | grep -v "$(basename $0) $watcher" | grep -vE "(vim|gvim|emacs|scite|geany).*${watcher}" | grep -qE "([[:digit:]] ${watcher} |[[:digit:]] ${watcher}$|[[:digit:]] .*bin/${watcher} |[[:digit:]] .*bin/${watcher}$)" ; then
 
-            local message_waitingfor
-            message_waitingfor="$( printf "$( eval_gettext "Some processes are still running. Waiting for them to finish:" )" "" )"
-
             ( guitool info "${message_waitingfor} $watcher" & )
 
             #el_speak_text "Please wait, some processes are still running. Wating for $watcher"
@@ -203,6 +204,21 @@ check_and_inform_when_processes_running(){
         fi
     done
 
+    # wait for post-install user desktop steps, they needs to finish correctly:
+    if ps ux | grep -v grep | grep -v "$$" | grep -qsE "/(user-manager|deliver)/hooks.d/" ; then
+
+        ( guitool info "${message_waitingfor} Desktop Setup" & )
+
+        # wait them to finish
+        while true
+        do
+            sleep 1
+
+            if ! ps ux | grep -v grep | grep -v "$$" | grep -qsE "/(user-manager|deliver)/hooks.d/" ; then
+                break
+            fi
+        done
+    fi
 }
 
 check_if_already_shutdown_process(){
