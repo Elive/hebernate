@@ -420,7 +420,7 @@ do_action(){
                 fi
             else
                 is_failed=1
-                el_warning "no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\n$(cat "$logs_error" )"
+                el_warning "no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\n$(cat "$logs_error" )\n$( systemctl status ${action}.target 2>&1 )"
             fi
         fi
     else
