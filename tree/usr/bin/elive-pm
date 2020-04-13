@@ -39,6 +39,14 @@ echo "$$" > "$lockfile"
 
 # end lock system }}}
 
+# TODO:
+# - implement: desktop-logout
+# - implement: desktop-restart
+# - implement:
+# - implement:
+# - implement:
+
+
 usage(){
     # Usage
     if [[ -z "${1}" ]] ; then
