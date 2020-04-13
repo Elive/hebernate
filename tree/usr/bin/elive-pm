@@ -314,9 +314,12 @@ do_fallback(){
                     el_sudo /sbin/reboot
                 else
                     #gksu /sbin/reboot
-                    /sbin/reboot
+                    true
                 fi
             fi
+            # we still here? report
+            /sbin/reboot 2>>"$logs_error"
+            is_failed=1
             ;;
         shutdown)
             if ! /sbin/poweroff ; then
@@ -324,9 +327,12 @@ do_fallback(){
                     el_sudo /sbin/poweroff
                 else
                     #gksu /sbin/poweroff
-                    /sbin/poweroff
+                    true
                 fi
             fi
+            # we still here? report
+            /sbin/poweroff 2>>"$logs_error"
+            is_failed=1
             ;;
         hibernate|suspend-then-hibernate)
             if el_check_sudo_automated ; then
@@ -424,21 +430,31 @@ do_action(){
                     true
                 else
                     is_failed=1
-                    el_warning "failed to run: systemctl '$action' (sudo): $(cat "$logs_error" )"
                 fi
             else
                 is_failed=1
-                el_warning "no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\n$(cat "$logs_error" )\n$( systemctl status ${action}.target 2>&1 )"
+                #el_warning "no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\n$(cat "$logs_error" )\n$( systemctl status ${action}.target 2>&1 )"
             fi
         fi
     else
+        is_failed=1
+    fi
+
+    if ((is_failed)) ; then
+        unset is_failed
+
         do_fallback "$action"
     fi
 
+
     # errors? {{{
     # show errors if any
-    if ((is_failed)) && [[ -s "$logs_error" ]] ; then
-        guitool error "$( cat "$logs_error" | uniq )"
+    if ((is_failed)) ; then
+        if [[ -s "$logs_error" ]] ; then
+            guitool error "$( cat "$logs_error" | uniq )"
+        fi
+
+        el_warning "no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\n$(cat "$logs_error" )\n$( systemctl status ${action}.target 2>&1 )"
     fi
 
 
