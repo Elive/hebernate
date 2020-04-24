@@ -184,7 +184,6 @@ check_and_inform_when_processes_running(){
         message_wait_processes="$( printf "$( eval_gettext "Some package processes are running, probably an upgrade of the system. Your computer shutdown will be executed after these processes are finished." )" "" )"
 
         # seems like desktop is off, so we cannot send a notify message?
-        #el_notify_user_important "$message_wait_processes_title" "$message_wait_processes"
         ( guitool info "$message_wait_processes" & )
         #el_speak_text "waiting packages process to finish"
 
@@ -205,7 +204,6 @@ check_and_inform_when_processes_running(){
             el_warning "$(basename $0): waiting for process: $watcher"
             #log_msg... ?
 
-            #el_notify_user_important "$message_wait_processes_title" "${message_wait_processes_generic}:\n\n$watcher"
             #( guitool info "${message_wait_processes_title}. ${message_wait_processes_generic}:\n\n$watcher" & )
             ( guitool info "${message_wait_processes_generic}:\n\n$watcher" & )
 
@@ -378,7 +376,7 @@ do_action(){
     if grep -q "boot=live" /proc/cmdline ; then
         case "$action" in
             suspend|hibernate|suspend-then-hibernate)
-                el_notify_user_important "Live mode detected" "$message_live_disabled"
+                el_notify normal normal "drive-removable-media" "Live mode detected" "$message_live_disabled"
                 exit
                 ;;
         esac
