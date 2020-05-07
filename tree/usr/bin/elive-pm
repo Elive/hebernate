@@ -196,7 +196,8 @@ check_and_inform_when_processes_running(){
     do
         if ps aux | grep -v grep | grep -v "$$" | grep -v "$(basename $0) $watcher" | grep -vE "(vim|gvim|emacs|scite|geany).*${watcher}" | grep -qE "([[:digit:]] ${watcher} |[[:digit:]] ${watcher}$|[[:digit:]] .*bin/${watcher} |[[:digit:]] .*bin/${watcher}$)" ; then
 
-            ( guitool info "${message_waitingfor} $watcher" & )
+            # show a message after 4 seconds waiting for shutdown computer:
+            ( sleep 4 ; guitool info "${message_waitingfor} $watcher" & )
 
             #el_speak_text "Please wait, some processes are still running. Wating for $watcher"
 
