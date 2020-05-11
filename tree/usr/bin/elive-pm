@@ -165,12 +165,12 @@ check_and_inform_when_processes_running(){
 
     # TODO: temporal checks: these are meant to be other poweroff processes, we should simply exit in case that they are (already) running?
     if \
-        pidof -x 'xfce4-power-manager' 1>/dev/null 2>&1 || \
-        pidof -x 'mate-power-manager' 1>/dev/null 2>&1 || \
-        pidof -x 'dalston-power-applet' 1>/dev/null 2>&1 || \
-        pidof -x 'gnome-power-manager' 1>/dev/null 2>&1 || \
-        pidof -x 'kpowersave' 1>/dev/null 2>&1 || \
-        pidof -x 'guidance-power-manager.py' 1>/dev/null 2>&1 ; then
+        pidof -xq 'xfce4-power-manager' || \
+        pidof -xq 'mate-power-manager' || \
+        pidof -xq 'dalston-power-applet' || \
+        pidof -xq 'gnome-power-manager' || \
+        pidof -xq 'kpowersave' || \
+        pidof -xq 'guidance-power-manager.py' ; then
         # just report, because we don't know if we should ingore them or not
         el_warning "another poweroff system running?"
 
@@ -194,21 +194,26 @@ check_and_inform_when_processes_running(){
     # other possible X processes:
     for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount
     do
-        if ps aux | grep -v grep | grep -v "$$" | grep -v "$(basename $0) $watcher" | grep -vE "(vim|gvim|emacs|scite|geany).*${watcher}" | grep -qE "([[:digit:]] ${watcher} |[[:digit:]] ${watcher}$|[[:digit:]] .*bin/${watcher} |[[:digit:]] .*bin/${watcher}$)" ; then
+        if pidof -cxq "$watcher" ; then
+            # wait them to finish before to check again: more exactly: elive-upgrader (delayed wait) will close if we are shutting down
+            sleep 2
 
-            # show a message after 4 seconds waiting for shutdown computer:
-            ( sleep 4 ; guitool info "${message_waitingfor} $watcher" & )
+            if pidof -cxq "$watcher" ; then
 
-            #el_speak_text "Please wait, some processes are still running. Wating for $watcher"
+                # show a message after 4 seconds waiting for shutdown computer:
+                ( sleep 2 ; guitool info "${message_waitingfor} $watcher" & )
 
-            # TODO: temporal report:
-            el_warning "$(basename $0): waiting for process: $watcher"
-            #log_msg... ?
+                #el_speak_text "Please wait, some processes are still running. Wating for $watcher"
 
-            #( guitool info "${message_wait_processes_title}. ${message_wait_processes_generic}:\n\n$watcher" & )
-            ( guitool info "${message_wait_processes_generic}:\n\n$watcher" & )
+                # TODO: temporal report:
+                el_warning "$(basename $0): waiting for process: $watcher"
+                #log_msg... ?
 
-            waitfor $watcher
+                #( guitool info "${message_wait_processes_title}. ${message_wait_processes_generic}:\n\n$watcher" & )
+                ( guitool info "${message_wait_processes_generic}:\n\n$watcher" & )
+
+                waitfor $watcher
+            fi
         fi
     done
 
@@ -231,16 +236,16 @@ check_and_inform_when_processes_running(){
 
 check_if_already_shutdown_process(){
     if \
-        pidof -x '/sbin/pm-suspend' 1>/dev/null 2>&1 || \
-        pidof -x '/sbin/pm-suspend-hybrid' 1>/dev/null 2>&1 || \
-        pidof -x '/sbin/pm-hibernate' 1>/dev/null 2>&1 || \
-        pidof -x '/usr/sbin/pm-suspend' 1>/dev/null 2>&1 || \
-        pidof -x '/usr/sbin/pm-suspend-hybrid' 1>/dev/null 2>&1 || \
-        pidof -x '/usr/sbin/pm-hibernate' 1>/dev/null 2>&1 || \
-        pidof -x '/sbin/shutdown' 1>/dev/null 2>&1 || \
-        pidof -x '/sbin/reboot' 1>/dev/null 2>&1 || \
-        pidof -x '/usr/sbin/shutdown' 1>/dev/null 2>&1 || \
-        pidof -x '/usr/sbin/reboot' 1>/dev/null 2>&1 || \
+        pidof -xq '/sbin/pm-suspend' || \
+        pidof -xq '/sbin/pm-suspend-hybrid' || \
+        pidof -xq '/sbin/pm-hibernate' || \
+        pidof -xq '/usr/sbin/pm-suspend' || \
+        pidof -xq '/usr/sbin/pm-suspend-hybrid' || \
+        pidof -xq '/usr/sbin/pm-hibernate' || \
+        pidof -xq '/sbin/shutdown' || \
+        pidof -xq '/sbin/reboot' || \
+        pidof -xq '/usr/sbin/shutdown' || \
+        pidof -xq '/usr/sbin/reboot' || \
         /sbin/runlevel | grep -qs "[06]" ; then
 
         return 1
@@ -377,7 +382,7 @@ do_action(){
     if grep -q "boot=live" /proc/cmdline ; then
         case "$action" in
             suspend|hibernate|suspend-then-hibernate)
-                el_notify normal normal "drive-removable-media" "Live mode detected" "$message_live_disabled"
+                el_notify normal "drive-removable-media" "Live mode detected" "$message_live_disabled"
                 exit
                 ;;
         esac
@@ -512,7 +517,7 @@ main(){
     logs_error="$( mktemp )"
     el_add_on_exit  rm -f "$logs_error"
 
-    if pidof systemd 1>/dev/null 2>&1 ; then
+    if pidof -cq systemd ; then
         is_systemd=1
     fi
 
