@@ -324,7 +324,7 @@ do_fallback(){
             fi
             # we still here? report
             /sbin/reboot 2>>"$logs_error"
-            is_failed=1
+            is_failed=4
             ;;
         shutdown)
             if ! /sbin/poweroff ; then
@@ -337,7 +337,7 @@ do_fallback(){
             fi
             # we still here? report
             /sbin/poweroff 2>>"$logs_error"
-            is_failed=1
+            is_failed=5
             ;;
         hibernate|suspend-then-hibernate)
             if el_check_sudo_automated ; then
@@ -437,18 +437,18 @@ do_action(){
                     is_failed=1
                 fi
             else
-                is_failed=1
+                is_failed=2
                 #el_warning "no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\n$(cat "$logs_error" )\n$( systemctl status ${action}.target 2>&1 )"
             fi
         fi
     else
-        is_failed=1
+        is_failed=3
     fi
 
     if ((is_failed)) ; then
-        unset is_failed
-
-        do_fallback "$action"
+        if do_fallback "$action" ; then
+            unset is_failed
+        fi
     fi
 
 
@@ -456,10 +456,12 @@ do_action(){
     # show errors if any
     if ((is_failed)) ; then
         if [[ -s "$logs_error" ]] ; then
-            guitool error "$( cat "$logs_error" | uniq )"
+            guitool error "$( cat "$logs_error" | sort -u )"
         fi
 
-        el_warning "no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\n$(cat "$logs_error" )\n$( systemctl status ${action}.target 2>&1 )"
+        if ! check_if_already_shutdown_process ; then
+            el_warning "FAIL with is_failed '$is_failed' code, maybe no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\nlog errosr: $(cat "$logs_error" | sort -u )\nsystemctl status ${action}: $( systemctl status ${action}.target 2>&1 )\ngroups: $(groups)"
+        fi
     fi
 
 
@@ -519,7 +521,12 @@ main(){
 
     if pidof -cq systemd ; then
         is_systemd=1
+    else
+        if ! [[ -e "/var/lib/dpkg/info/sysvinit-core.list" ]] ; then
+            is_systemd=1
+        fi
     fi
+
 
     el_config_get
 
