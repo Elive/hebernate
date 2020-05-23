@@ -460,7 +460,7 @@ do_action(){
         fi
 
         if ! check_if_already_shutdown_process ; then
-            el_warning "FAIL with is_failed '$is_failed' code, maybe no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\nlog errosr: $(cat "$logs_error" | sort -u )\nsystemctl status ${action}: $( systemctl status ${action}.target 2>&1 )\ngroups: $(groups)"
+            el_warning "FAIL with is_failed '$is_failed' code, maybe no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\nlog errosr: $(cat "$logs_error" | sort -u )\nsystemctl status ${action}: $( systemctl status ${action}.target 2>&1 )\ngroups: $(groups)\nwho: $(who)"
         fi
     fi
 
