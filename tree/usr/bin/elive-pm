@@ -218,19 +218,22 @@ check_and_inform_when_processes_running(){
     done
 
     # wait for post-install user desktop steps, they needs to finish correctly:
-    if ps ux | grep -v grep | grep -v "$$" | grep -qsE "/(user-manager|deliver)/hooks.d/" ; then
+    # but not when in live, otherwise we may have a very slow shutdown due to delayed hooks
+    if grep -q "boot=live" /proc/cmdline ; then
+        if ps ux | grep -v grep | grep -v "$$" | grep -qsE "/(user-manager|deliver)/hooks.d/" ; then
 
-        ( guitool info "${message_waitingfor} Desktop Setup" & )
+            ( guitool info "${message_waitingfor} Desktop Setup" & )
 
-        # wait them to finish
-        while true
-        do
-            sleep 1
+            # wait them to finish
+            while true
+            do
+                sleep 1
 
-            if ! ps ux | grep -v grep | grep -v "$$" | grep -qsE "/(user-manager|deliver)/hooks.d/" ; then
-                break
-            fi
-        done
+                if ! ps ux | grep -v grep | grep -v "$$" | grep -qsE "/(user-manager|deliver)/hooks.d/" ; then
+                    break
+                fi
+            done
+        fi
     fi
 }
 
