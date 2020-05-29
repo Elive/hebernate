@@ -192,13 +192,15 @@ check_and_inform_when_processes_running(){
     fi
 
     # other possible X processes:
-    for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount
+    for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount fstrim
     do
         if pidof -cxq "$watcher" ; then
             # wait them to finish before to check again: more exactly: elive-upgrader (delayed wait) will close if we are shutting down
             sleep 2
 
-            if pidof -cxq "$watcher" ; then
+            # note: pidof doesn't show processes like "fstrim"
+            #if pidof -cxq "$watcher" ; then
+            if ps axk comm o comm,args | grep -qs "^${watcher}.*${watcher} " ; then
 
                 # show a message after 4 seconds waiting for shutdown computer:
                 ( sleep 2 ; guitool info "${message_waitingfor} $watcher" & )
