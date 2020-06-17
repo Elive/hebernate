@@ -330,7 +330,7 @@ do_fallback(){
             /sbin/reboot 2>>"$logs_error"
             is_failed=4
             ;;
-        shutdown)
+        shutdown|poweroff|halt)
             if ! /sbin/poweroff ; then
                 if el_check_sudo_automated ; then
                     el_sudo /sbin/poweroff
@@ -342,7 +342,7 @@ do_fallback(){
             /sbin/poweroff 2>>"$logs_error"
             is_failed=5
             ;;
-        hibernate|suspend-then-hibernate)
+        hibernate|suspend-then-hibernate|stop)
             if el_check_sudo_automated ; then
                 el_sudo /sbin/pm-hibernate
             else
