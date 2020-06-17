@@ -323,8 +323,7 @@ do_fallback(){
                 if el_check_sudo_automated ; then
                     el_sudo /sbin/reboot
                 else
-                    #gksu /sbin/reboot
-                    true
+                    gksu /sbin/reboot
                 fi
             fi
             # we still here? report
@@ -336,8 +335,7 @@ do_fallback(){
                 if el_check_sudo_automated ; then
                     el_sudo /sbin/poweroff
                 else
-                    #gksu /sbin/poweroff
-                    true
+                    gksu /sbin/poweroff
                 fi
             fi
             # we still here? report
@@ -348,18 +346,18 @@ do_fallback(){
             if el_check_sudo_automated ; then
                 el_sudo /sbin/pm-hibernate
             else
-                # seems like we should not need su
-                #gksu /sbin/hebernate "$1"
-                /sbin/pm-hibernate
+                if ! /sbin/pm-hibernate ; then
+                    gksu /sbin/pm-hibernate
+                fi
             fi
             ;;
         suspend)
             if el_check_sudo_automated ; then
                 el_sudo /sbin/pm-suspend
             else
-                # seems like we should not need su
-                #gksu /sbin/hebernate "$1"
-                /sbin/pm-suspend
+                if ! /sbin/pm-suspend ; then
+                    gksu /sbin/pm-suspend
+                fi
             fi
             ;;
     esac
