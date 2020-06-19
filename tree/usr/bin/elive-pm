@@ -320,44 +320,28 @@ do_fallback(){
     case "$1" in
         reboot)
             if ! /sbin/reboot ; then
-                if el_check_sudo_automated ; then
-                    el_sudo /sbin/reboot
-                else
-                    gksu /sbin/reboot
-                fi
+                el_sudo /sbin/reboot
             fi
             # we still here? report
-            /sbin/reboot 2>>"$logs_error"
-            is_failed=4
+            #/sbin/reboot 2>>"$logs_error"
+            #is_failed=4
             ;;
         shutdown|poweroff|halt)
             if ! /sbin/poweroff ; then
-                if el_check_sudo_automated ; then
-                    el_sudo /sbin/poweroff
-                else
-                    gksu /sbin/poweroff
-                fi
+                el_sudo /sbin/poweroff
             fi
             # we still here? report
-            /sbin/poweroff 2>>"$logs_error"
-            is_failed=5
+            #/sbin/poweroff 2>>"$logs_error"
+            #is_failed=5
             ;;
         hibernate|suspend-then-hibernate|stop)
-            if el_check_sudo_automated ; then
+            if ! /sbin/pm-hibernate ; then
                 el_sudo /sbin/pm-hibernate
-            else
-                if ! /sbin/pm-hibernate ; then
-                    gksu /sbin/pm-hibernate
-                fi
             fi
             ;;
         suspend)
-            if el_check_sudo_automated ; then
+            if ! /sbin/pm-suspend ; then
                 el_sudo /sbin/pm-suspend
-            else
-                if ! /sbin/pm-suspend ; then
-                    gksu /sbin/pm-suspend
-                fi
             fi
             ;;
     esac
