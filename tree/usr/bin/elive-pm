@@ -335,13 +335,13 @@ do_fallback(){
             #is_failed=5
             ;;
         hibernate|suspend-then-hibernate|stop)
-            if ! /sbin/pm-hibernate ; then
-                el_sudo /sbin/pm-hibernate
+            if ! /usr/sbin/pm-hibernate ; then
+                el_sudo /usr/sbin/pm-hibernate
             fi
             ;;
         suspend)
-            if ! /sbin/pm-suspend ; then
-                el_sudo /sbin/pm-suspend
+            if ! /usr/sbin/pm-suspend ; then
+                el_sudo /usr/sbin/pm-suspend
             fi
             ;;
     esac
