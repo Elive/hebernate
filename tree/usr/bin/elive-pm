@@ -23,7 +23,7 @@ else
     PROCCESS=" "
 fi
 if (ps up $PROCCESS) 1>/dev/null 2>&1 ; then
-    el_error "$(basename $0) already running"
+    el_error "$(basename $0) already running, args '$@', processes:\n$(ps aux | grep -v grep | grep -v "$$" | grep elive-pm )"
     exit
 else
     echo $$ > "$lockfile"
