@@ -146,7 +146,7 @@ check_and_inform_when_processes_running(){
     message_wait_processes_title="$( printf "$( eval_gettext "Waiting for processes to finish" )" "" )"
 
     local message_wait_processes_generic
-    message_wait_processes_generic="$( printf "$( eval_gettext "Your computer will shutdown after some remaining processes will finish." )" "" )"
+    message_wait_processes_generic="$( printf "$( eval_gettext "Your computer will shutdown after some remaining processes finish." )" "" )"
 
 
     # - pre }}}
@@ -181,7 +181,7 @@ check_and_inform_when_processes_running(){
     # apt / dpkg processes
     if fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock  1>/dev/null 2>&1 ; then
         local message_wait_processes
-        message_wait_processes="$( printf "$( eval_gettext "Some packages processes are still running, probably an upgrade of the system. Your computer shutdown will be executed after these processes are finished." )" "" )"
+        message_wait_processes="$( printf "$( eval_gettext "Some packages processes are still running, probably an upgrade of the system. Your computer shutdown will be initiated after these processes are finished." )" "" )"
 
         # seems like desktop is off, so we cannot send a notify message?
         ( guitool info "$message_wait_processes" & )
@@ -278,13 +278,13 @@ inform_if_errors(){
         # vbox errors:
         lines_tmp="$( echo "$lines" | grep -iE "(vminfo.*error|VERR_NOT_SUPPORTED|error.*virtualbox)" )"
         if [[ "$lines_tmp" -gt "3" ]] ; then
-            guitool warning "$( eval_gettext "It is possible that your virtual environment doesn't supports well the suspension or hibernation features. You can check your system messages using the command:" ) dmesg"
+            guitool warning "$( eval_gettext "It is possible that your virtual environment doesn't well support the suspension or hibernation features. You can check your system messages using the command:" ) dmesg"
             #el_warning "possible vbox errors: $( echo "$lines" | tail -10 )"
         fi
 
         lines_tmp="$( echo "$lines" | grep -iE "\[ cut here \]" )"
         if [[ "$lines_tmp" -ge "1" ]] ; then
-            guitool warning "$( eval_gettext "Some system messages has been found after recovering. You can verify them using the command:" ) dmesg"
+            guitool warning "$( eval_gettext "Some system messages has been found after recovering. You can check them using the command:" ) dmesg"
             el_warning "possible backtrace founds: $( echo "$lines" | tail -30 )"
         fi
 
@@ -393,12 +393,12 @@ do_action(){
         hibernate)
             # check if we have a resume configuration
             if ! grep -qsE "LINUX_DEFAULT.*resume=" /etc/default/grub ; then
-                guitool error "$( eval_gettext "Your GRUB configuration doesn't include the details of the swap space where to perform the hibernation. If you want to have hibernation you should reinstall Elive and add a swap partition (SWAP)." )"
+                guitool error "$( eval_gettext "Your GRUB configuration doesn't include the details of the swap space (where to perform the hibernation). If you want to have hibernation you should reinstall Elive and add a swap partition (SWAP)." )"
                 exit
             fi
             # check for using swap space:
             if [[ "$( LC_ALL="$EL_LC_EN" free -m | grep -i "^Swap:" | awk '{print $2}' )" = 0 ]] ; then
-                guitool warning "$( eval_gettext "You are not using a swap space (SWAP), which is required to hibernate your computer. If hibernation doesn't work, you should reinstall Elive and add a swap partition to use this feature." )"
+                guitool warning "$( eval_gettext "You do not have a swap partition (SWAP), which is required to hibernate your computer. If hibernation doesn't work, you should reinstall Elive and add a swap partition to use this feature." )"
                 exit
             fi
             ;;
