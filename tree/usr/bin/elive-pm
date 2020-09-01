@@ -469,9 +469,8 @@ do_action(){
             hour="$(date +%k)"
             if [[ "${hour}" -lt "21" ]] && [[ "$hour" -gt "8" ]] ; then
                 soundfile="/usr/share/sounds/elive/system-restored.mp3"
-                precache "$soundfile" 2>/dev/null
                 if [[ -x "$(which mplayer)" ]] ; then
-                    ( timeout 30 mplayer -noconfig all -really-quiet "$soundfile" & )
+                    ( sleep 5 ; precache "$soundfile" 2>/dev/null ; timeout 30 mplayer -noconfig all -really-quiet "$soundfile" & )
                 else
                     el_speak_text "welcome back to ailive"
                 fi
