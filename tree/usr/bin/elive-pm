@@ -410,15 +410,12 @@ do_action(){
 
     if ((is_systemd)) ; then
         if systemctl "$action" 2>>"$logs_error" ; then
-            # all good, exit
-            #exit 0
             true
         else
             # maybe with sudo?
             if el_check_sudo_automated ; then
+
                 if el_sudo systemctl "$action" 2>>"$logs_error" ; then
-                    # all good, exit
-                    #exit 0
                     true
                 else
                     is_failed=1
@@ -449,6 +446,9 @@ do_action(){
         if ! check_if_already_shutdown_process ; then
             el_warning "FAIL with is_failed '$is_failed' code, maybe no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\nlog errosr: $(cat "$logs_error" | sort -u )\nsystemctl status ${action}: $( systemctl status ${action}.target 2>&1 )\ngroups: $(groups)\nwho: $(who)"
         fi
+
+        # do not continue with the "BACK" state if we failed, stop here
+        return
     fi
 
 
@@ -458,19 +458,28 @@ do_action(){
     # BACK from suspsension
     #
 
+    # let the system finish to come back
+    sleep 5
     sync
+
 
     case "$action" in
         suspend|hibernate|suspend-then-hibernate)
             # check for errors
             inform_if_errors &
 
+            # always lock if we didn't needed to insert password on boot
+            if ! grep -qs "_crypt.*UUID.*luks" /etc/crypttab ; then
+                do_desktop_lock
+            fi
+
             # play audio of system restored
             hour="$(date +%k)"
             if [[ "${hour}" -lt "21" ]] && [[ "$hour" -gt "8" ]] ; then
                 soundfile="/usr/share/sounds/elive/system-restored.mp3"
+
                 if [[ -x "$(which mplayer)" ]] ; then
-                    ( sleep 5 ; precache "$soundfile" 2>/dev/null ; timeout 30 mplayer -noconfig all -really-quiet "$soundfile" & )
+                    ( precache "$soundfile" 2>/dev/null ; timeout 30 mplayer -noconfig all -really-quiet "$soundfile" & )
                 else
                     el_speak_text "welcome back to ailive"
                 fi
