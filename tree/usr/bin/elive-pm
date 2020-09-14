@@ -492,8 +492,10 @@ do_action(){
             if [[ "$action" = "hibernate" ]] && el_check_sudo_automated ; then
                 # reload swap if possible, to have the desktop resonsive
                 sleep 5 ; sync
+                el_info "Freeing SWAP..."
                 el_sudo swapoff -a 1>/dev/null 2>&1
                 el_sudo swapon -a 1>/dev/null 2>&1
+                el_info "SWAP re-enabled"
             fi
             ;;
     esac
