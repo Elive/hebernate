@@ -137,6 +137,23 @@ apt_dpkg_wait(){
     fi
 }
 
+show_execution_stacks_from_names(){
+    local pid name execution_stack
+
+    for name in "$@"
+    do
+        for pid in $(pidof -x "$name" )
+        do
+            execution_stack="$( pstree -A -l -n -s "$pid" )"
+            execution_stack="$( echo "$execution_stack" | sed -e 's|^init---||g' -e 's|^.*lightdm---||g' -e 's|---pstree||g' -e 's|---enlightenment---|---|g' -e 's|---ck-launch-sessi||g' -e's|-+-ck-launch-sessi||g' -e 's|---enlightenment_s||g' -e 's|---e_wrapper---e_wrapper|---e_wrapper|g' -e 's|---el_report_to_elive||g' )"
+
+            if [[ -n "$execution_stack" ]] ; then
+                echo "$execution_stack"
+            fi
+        done
+    done
+}
+
 
 check_and_inform_when_processes_running(){
     # pre {{{
@@ -172,7 +189,7 @@ check_and_inform_when_processes_running(){
         pidof -xq 'kpowersave' || \
         pidof -xq 'guidance-power-manager.py' ; then
         # just report, because we don't know if we should ingore them or not
-        el_warning "another poweroff system running?"
+        el_warning "another poweroff system running?:\n\n$( show_execution_stacks_from_names xfce4-power-manager mate-pwoer-manager dalston-power-applet gnome-power-manager kpowersave guidance-power-manager.py )"
 
         #( guitool warning "Seems like we have other poweroff services already running?"  & )
     fi
