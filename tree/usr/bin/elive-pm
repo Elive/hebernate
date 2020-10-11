@@ -313,13 +313,13 @@ do_desktop_lock(){
     # e16
     if [[ -n "$EROOT" ]] ; then
         if [[ -x "$(which i3lock-fancy)" ]] ; then
-            ( sleep 6 ; xset dpms force off ; )
+            ( sleep 6 ; xset dpms force off ; ) &
             i3lock-fancy -g
 
             waitfor i3lock-fancy && xset dpms 0 0 0
         else
             if [[ -x "$(which i3lock)" ]] ; then
-                ( sleep 6 ; xset dpms force off ; )
+                ( sleep 6 ; xset dpms force off ; ) &
                 i3lock -f -c 000000
 
                 waitfor i3lock && xset dpms 0 0 0
