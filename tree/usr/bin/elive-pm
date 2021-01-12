@@ -485,6 +485,11 @@ do_action(){
             # check for errors
             inform_if_errors &
 
+            # load back some configurations after suspensions, seems like sometimes the hardware loses its settings:
+            if [[ -n "$EROOT" ]] ; then
+                touchpad-configurator --load
+            fi
+
             # always lock if we didn't needed to insert password on boot
             if ! grep -qs "_crypt.*UUID.*luks" /etc/crypttab ; then
                 do_desktop_lock
