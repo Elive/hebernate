@@ -285,7 +285,7 @@ inform_if_errors(){
         lines_tmp="$( echo "$lines" | grep -i error | grep -i sector )"
 
         # HD data loss?
-        if [[ "$( echo "lines_tmp" | wc -l )" -gt "3" ]] ; then
+        if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
             guitool warning "$( eval_gettext "The following error messages has been found in your system. Inspect them in more detail to see if you have an issue with your system. If these features produce any issues, you should stop using this feature or try it with a different kernel version. Not doing so may cause data loss." ) dmesg\n\n$( echo "${lines}" | sort -u )"
             el_warning "possible data loss recovering from suspension / hibernation: $( echo "$lines" | tail -10 )"
 
@@ -294,13 +294,13 @@ inform_if_errors(){
 
         # vbox errors:
         lines_tmp="$( echo "$lines" | grep -iE "(vminfo.*error|VERR_NOT_SUPPORTED|error.*virtualbox)" )"
-        if [[ "$( echo "lines_tmp" | wc -l )" -gt "3" ]] ; then
+        if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
             guitool warning "$( eval_gettext "It is possible that your virtual environment doesn't well support the suspension or hibernation features. You can check your system log using the command:" ) dmesg"
             #el_warning "possible vbox errors: $( echo "$lines" | tail -10 )"
         fi
 
         lines_tmp="$( echo "$lines" | grep -iE "\[ cut here \]" )"
-        if [[ "$( echo "lines_tmp" | wc -l )" -ge "1" ]] ; then
+        if [[ "$( echo "$lines_tmp" | wc -l )" -ge "1" ]] ; then
             guitool warning "$( eval_gettext "Some system messages have been found after recovering. You can check them using the command:" ) dmesg"
             el_warning "possible backtrace founds: $( echo "$lines" | tail -30 )"
         fi
