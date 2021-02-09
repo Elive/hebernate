@@ -300,7 +300,7 @@ inform_if_errors(){
         fi
 
         lines_tmp="$( echo "$lines" | grep -iE "\[ cut here \]" )"
-        if [[ "$( echo "$lines_tmp" | wc -l )" -ge "1" ]] ; then
+        if [[ "$( echo "$lines_tmp" | wc -l )" -gt "1" ]] ; then
             guitool warning "$( eval_gettext "Some system messages have been found after recovering. You can check them using the command:" ) dmesg"
             el_warning "possible backtrace founds: $( echo "$lines" | tail -30 )"
         fi
