@@ -279,34 +279,33 @@ check_if_already_shutdown_process(){
 inform_if_errors(){
     local lines
 
-    for i in 1 2 3 4 5
-    do
-        lines="$( dmesg | tail -n 300 )"
-        lines_tmp="$( echo "$lines" | grep -i error | grep -i sector )"
+    if [[ "$1" = "delayed" ]] ; then
+        sleep 15
+    fi
 
-        # HD data loss?
-        if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
-            guitool warning "$( eval_gettext "The following error messages has been found in your system. Inspect them in more detail to see if you have an issue with your system. If these features produce any issues, you should stop using this feature or try it with a different kernel version. Not doing so may cause data loss." ) dmesg\n\n$( echo "${lines}" | sort -u )"
-            el_warning "possible data loss recovering from suspension / hibernation: $( echo "$lines" | tail -10 )"
+    lines="$( dmesg | tail -n 300 )"
+    lines_tmp="$( echo "$lines" | grep -i error | grep -i sector )"
 
-            break
-        fi
+    # HD data loss?
+    if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
+        guitool warning "$( eval_gettext "The following error messages has been found in your system. Inspect them in more detail to see if you have an issue with your system. If these features produce any issues, you should stop using this feature or try it with a different kernel version. Not doing so may cause data loss." ) dmesg\n\n$( echo "${lines}" | sort -u )"
+        el_warning "possible data loss recovering from suspension / hibernation: $( echo "$lines" | tail -10 )"
 
-        # vbox errors:
-        lines_tmp="$( echo "$lines" | grep -iE "(vminfo.*error|VERR_NOT_SUPPORTED|error.*virtualbox)" )"
-        if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
-            guitool warning "$( eval_gettext "It is possible that your virtual environment doesn't well support the suspension or hibernation features. You can check your system log using the command:" ) dmesg"
-            #el_warning "possible vbox errors: $( echo "$lines" | tail -10 )"
-        fi
+        break
+    fi
 
-        lines_tmp="$( echo "$lines" | grep -iE "\[ cut here \]" )"
-        if [[ "$( echo "$lines_tmp" | wc -l )" -gt "1" ]] ; then
-            guitool warning "$( eval_gettext "Some system messages have been found after recovering. You can check them using the command:" ) dmesg"
-            el_warning "possible backtrace founds: $( echo "$lines" | tail -30 )"
-        fi
+    # vbox errors:
+    lines_tmp="$( echo "$lines" | grep -iE "(vminfo.*error|VERR_NOT_SUPPORTED|error.*virtualbox)" )"
+    if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
+        guitool warning "$( eval_gettext "It is possible that your virtual environment doesn't well support the suspension or hibernation features. You can check your system log using the command:" ) dmesg"
+        #el_warning "possible vbox errors: $( echo "$lines" | tail -10 )"
+    fi
 
-        sleep 3
-    done
+    lines_tmp="$( echo "$lines" | grep -iE "\[ cut here \]" )"
+    if [[ "$( echo "$lines_tmp" | wc -l )" -gt "1" ]] ; then
+        guitool warning "$( eval_gettext "Some system messages have been found after recovering. You can check them using the command:" ) dmesg"
+        el_warning "possible backtrace founds: $( echo "$lines" | tail -30 )"
+    fi
 }
 
 do_desktop_lock(){
@@ -483,7 +482,7 @@ do_action(){
     case "$action" in
         suspend|hibernate|suspend-then-hibernate)
             # check for errors
-            inform_if_errors &
+            inform_if_errors "delayed" &
 
             # load back some configurations after suspensions, seems like sometimes the hardware loses its settings:
             if [[ -n "$EROOT" ]] ; then
