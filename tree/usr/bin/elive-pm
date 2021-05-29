@@ -290,8 +290,6 @@ inform_if_errors(){
     if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
         guitool warning "$( eval_gettext "The following error messages has been found in your system. Inspect them in more detail to see if you have an issue with your system. If these features produce any issues, you should stop using this feature or try it with a different kernel version. Not doing so may cause data loss. It is also important to make sure that your hard-disk is always in a healthy state." ) dmesg\n\n$( echo "${lines_tmp}" | sort -u | tail -n 50 )"
         el_warning "possible data loss recovering from suspension / hibernation: $( echo "$lines" | tail -10 )"
-
-        break
     fi
 
     # vbox errors:
