@@ -17,17 +17,38 @@ exit_error(){
     rm -f "$lockfile"
 }
 
+#if [[ -r "$lockfile" ]] ; then
+    #PROCCESS="$(cat $lockfile)"
+#else
+    #PROCCESS=" "
+#fi
+#if (ps up $PROCCESS) 1>/dev/null 2>&1 ; then
+    #el_error "$(basename $0) already running, args '$@', processes:\n$(ps aux | grep -v grep | grep -v "$$" | grep elive-pm )"
+    #exit
+#else
+    #echo $$ > "$lockfile"
+#fi
+
+# already running process on specific mode:
 if [[ -r "$lockfile" ]] ; then
-    PROCCESS="$(cat $lockfile)"
-else
-    PROCCESS=" "
+    PROCCESS="$$"
+    case "$@" in
+        lock)
+            if ps aux | grep -v grep | grep -v "$PROCCESS" | grep -E "$(basename $0).*(lock)" ; then
+                el_error "$(basename $0) already running, args '$@', processes:\n$(ps aux | grep -v grep | grep -v "$PROCCESS" | grep "$(basename $0)" )"
+                exit
+            fi
+            ;;
+        suspend|hibernate|stop|shutdown|reboot)
+            if ps aux | grep -v grep | grep -v "$PROCCESS" | grep -E "$(basename $0).*(suspend|hibernate|stop|shutdown|reboot)" ; then
+                el_error "$(basename $0) already running, args '$@', processes:\n$(ps aux | grep -v grep | grep -v "$PROCCESS" | grep "$(basename $0)" )"
+                exit
+            fi
+            ;;
+    esac
 fi
-if (ps up $PROCCESS) 1>/dev/null 2>&1 ; then
-    el_error "$(basename $0) already running, args '$@', processes:\n$(ps aux | grep -v grep | grep -v "$$" | grep elive-pm )"
-    exit
-else
-    echo $$ > "$lockfile"
-fi
+# set lock
+echo $$ > "$lockfile"
 
 # traps needs to be after the lock verification, in order to not remove it when we are already running
 trap "exit_ok" EXIT
