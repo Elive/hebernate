@@ -305,7 +305,7 @@ inform_if_errors(){
     fi
 
     lines="$( dmesg | tail -n 300 )"
-    lines_tmp="$( echo "$lines" | grep -i error | grep -i sector )"
+    lines_tmp="$( echo "$lines" | grep -i error | grep -i sector | grep -iv mmcblk )"
 
     # HD data loss?
     if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
