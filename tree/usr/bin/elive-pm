@@ -433,8 +433,14 @@ do_action(){
             fi
             # check for using swap space:
             if [[ "$( LC_ALL="$EL_LC_EN" free -m | grep -i "^Swap:" | awk '{print $2}' )" = 0 ]] ; then
-                guitool warning "$( eval_gettext "You do not have a swap partition (SWAP), which is required to hibernate your computer. If hibernation doesn't work, you should reinstall Elive and add a swap partition to use this feature." )"
-                exit
+                if grep -qsw "swap" /etc/fstab ; then
+                    gksu "swapon -a"
+                    sync
+                fi
+                if [[ "$( LC_ALL="$EL_LC_EN" free -m | grep -i "^Swap:" | awk '{print $2}' )" = 0 ]] ; then
+                    guitool warning "$( eval_gettext "You do not have a swap partition (SWAP), which is required to hibernate your computer. If hibernation doesn't work, you should reinstall Elive and add a swap partition to use this feature." )"
+                    exit
+                fi
             fi
             ;;
     esac
