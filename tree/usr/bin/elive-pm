@@ -391,9 +391,23 @@ do_action(){
 
     # - pre }}}
     # checks {{{
+
+    # check if system is already shutting down from another process
     if ! check_if_already_shutdown_process ; then
         guitool info "$( eval_gettext "Ignoring action, system is already shutting down" )"
         exit
+    fi
+
+    # check if fstrim is running, so we need to wait
+    if pidof -xq '/usr/sbin/fstrim' ; then
+        guitool info "$( eval_gettext "IMPORTANT: FSTRIM is running, we need to wait until it finishes before shutting down, do not close the computer or you can have data loss. Elive will shut down it when the process will be finished." )" &
+
+        while pidof -xq '/usr/sbin/fstrim' ; do
+            sleep 2
+        done
+
+        # flush
+        sleep 1 ; sync ; sleep 4
     fi
 
 
