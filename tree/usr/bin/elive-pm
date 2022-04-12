@@ -351,6 +351,17 @@ do_desktop_lock(){
     fi
 }
 
+do_desktop_logout(){
+    if [[ -n "$EROOT" ]] ; then
+        eesh exit
+    else
+        if [[ -n "$E_START" ]] ; then
+            enlightenment_remove -exit
+        fi
+    fi
+}
+
+
 do_fallback(){
     case "$1" in
         reboot)
@@ -631,6 +642,10 @@ main(){
             lock)
                 is_lock=1
                 do_desktop_lock
+                ;;
+            logout)
+                is_logout=1
+                do_desktop_logout
                 ;;
             stop)
                 is_stop=1
