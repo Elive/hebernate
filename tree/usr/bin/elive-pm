@@ -60,14 +60,6 @@ echo "$$" > "$lockfile"
 
 # end lock system }}}
 
-# TODO:
-# - implement: desktop-logout
-# - implement: desktop-restart
-# - implement:
-# - implement:
-# - implement:
-
-
 usage(){
     # Usage
     if [[ -z "${1}" ]] ; then
@@ -351,12 +343,22 @@ do_desktop_lock(){
     fi
 }
 
+do_desktop_reload(){
+    if [[ -n "$EROOT" ]] ; then
+        eesh restart
+    else
+        if [[ -n "$E_START" ]] ; then
+            enlightenment_remote -restart
+        fi
+    fi
+}
+
 do_desktop_logout(){
     if [[ -n "$EROOT" ]] ; then
         eesh exit
     else
         if [[ -n "$E_START" ]] ; then
-            enlightenment_remove -exit
+            enlightenment_remote -exit
         fi
     fi
 }
@@ -646,6 +648,10 @@ main(){
             logout)
                 is_logout=1
                 do_desktop_logout
+                ;;
+            reload)
+                is_reload=1
+                do_desktop_reload
                 ;;
             stop)
                 is_stop=1
