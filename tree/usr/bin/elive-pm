@@ -355,7 +355,11 @@ do_desktop_reload(){
 
 do_desktop_logout(){
     if [[ -n "$EROOT" ]] ; then
-        eesh exit
+        if [[ "$1" = "menu" ]] ; then
+            eesh exit logout
+        else
+            eesh exit
+        fi
     else
         if [[ -n "$E_START" ]] ; then
             enlightenment_remote -exit
@@ -648,6 +652,10 @@ main(){
             logout)
                 is_logout=1
                 do_desktop_logout
+                ;;
+            logoutmenu)
+                is_logout=1
+                do_desktop_logout menu
                 ;;
             reload)
                 is_reload=1
