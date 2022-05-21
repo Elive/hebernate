@@ -211,7 +211,7 @@ check_and_inform_when_processes_running(){
     # apt / dpkg processes
     if fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock  1>/dev/null 2>&1 ; then
         local message_wait_processes
-        message_wait_processes="$( printf "$( eval_gettext "Some package manager(s) are still running, probably an upgrade of the system. Your computer shutdown will be initiated after these processes are finished." )" "" )"
+        message_wait_processes="$( printf "$( eval_gettext "Some package manager(s) are still running, probably an upgrade of the system. Your computer shutdown will be initiated after these processes finish." )" "" )"
 
         # seems like desktop is off, so we cannot send a notify message?
         ( guitool info "$message_wait_processes" & )
@@ -301,14 +301,14 @@ inform_if_errors(){
 
     # HD data loss?
     if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
-        guitool warning "$( eval_gettext "The following error messages have been found in your system. This can be due to having disconnected an external hard disk, or maybe the Suspend features are not working correctly in your computer. In any case, you need to check what is the cause of this issue because it can cause data loss. It is also essential to make sure that your hard disk is always in a healthy state." ) dmesg\n\n$( echo "${lines_tmp}" | sort -u | tail -n 50 )"
+        guitool warning "$( eval_gettext "The following error messages have been found in your system. This can be due to having disconnected an external hard disk, or maybe the Suspend features are not working properly in your computer. In any case, you need to check the source of this issue because it can cause data loss. It is also essential to make sure that your hard disk is always in a healthy state." ) dmesg\n\n$( echo "${lines_tmp}" | sort -u | tail -n 50 )"
         el_warning "possible data loss recovering from suspension / hibernation: $( echo "$lines" | tail -10 )"
     fi
 
     # vbox errors:
     lines_tmp="$( echo "$lines" | grep -iE "(vminfo.*error|VERR_NOT_SUPPORTED|error.*virtualbox)" )"
     if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
-        guitool warning "$( eval_gettext "It is possible that your virtual environment doesn't well support the suspension or hibernation features. You can check your system log using the command:" ) dmesg"
+        guitool warning "$( eval_gettext "It is possible that your virtual environment doesn't support the suspension or hibernation features. You can check your system log using the command:" ) dmesg"
         #el_warning "possible vbox errors: $( echo "$lines" | tail -10 )"
     fi
 
@@ -417,7 +417,7 @@ do_action(){
 
     # check if fstrim is running, so we need to wait
     if pidof -xq '/usr/sbin/fstrim' ; then
-        guitool info "$( eval_gettext "IMPORTANT: FSTRIM is running, we need to wait until it finishes before shutting down, do not close the computer or you can have data loss. Elive will shut down it when the process will be finished." )" &
+        guitool info "$( eval_gettext "IMPORTANT: FSTRIM is running, we need to wait until it finishes before shutting down. Do not close the computer or you might lose data. Elive will shut down when the process finishes." )" &
 
         while pidof -xq '/usr/sbin/fstrim' ; do
             sleep 2
@@ -430,7 +430,7 @@ do_action(){
 
     # live mode?
     local message_live_disabled
-    message_live_disabled="$( printf "$( eval_gettext "You cannot perform a suspension of your computer while you are using Elive in Live mode. You need to install Elive in your computer to use this feature." )" "" )"
+    message_live_disabled="$( printf "$( eval_gettext "You cannot perform a suspension of your computer while you are using Elive in Live mode. You need to install Elive to your computer to use this feature." )" "" )"
 
     if grep -q "boot=live" /proc/cmdline ; then
         case "$action" in
@@ -469,7 +469,7 @@ do_action(){
                     sync
                 fi
                 if [[ "$( LC_ALL="$EL_LC_EN" free -m | grep -i "^Swap:" | awk '{print $2}' )" = 0 ]] ; then
-                    guitool warning "$( eval_gettext "You do not have a swap partition (SWAP), which is required to hibernate your computer. If hibernation doesn't work, you should reinstall Elive and add a swap partition to use this feature." )"
+                    guitool warning "$( eval_gettext "You do not have a swap partition, which is required to enable hibernation. If it doesn't work, you should reinstall Elive and add a swap partition." )"
                     exit
                 fi
             fi
