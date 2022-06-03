@@ -121,34 +121,6 @@ guitool(){
     esac
 }
 
-apt_dpkg_wait(){
-    local is_waiting i
-    i=0
-
-    tput sc
-    while fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock  >/dev/null 2>&1 ; do
-        case $(($i % 4)) in
-            0 ) j="-" ;;
-            1 ) j="\\" ;;
-            2 ) j="|" ;;
-            3 ) j="/" ;;
-        esac
-        tput rc
-        echo -en "\r[$j] Waiting for other software managers to finish..."
-        is_waiting=1
-
-        LC_ALL=C  sleep 0.5
-        ((i=i+1))
-    done
-
-    # make sure that dpkg/apt still not running
-    if ((is_waiting)) ; then
-        unset is_waiting
-        LC_ALL=C  sleep 3
-        # recursively call it again
-        $FUNCNAME
-    fi
-}
 
 show_execution_stacks_from_names(){
     local pid name execution_stack
@@ -674,6 +646,35 @@ main(){
 
     wait
 
+}
+
+apt_dpkg_wait(){
+    local is_waiting i
+    i=0
+
+    tput sc
+    while fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock  >/dev/null 2>&1 ; do
+        case $(($i % 4)) in
+            0 ) j="-" ;;
+            1 ) j="\\" ;;
+            2 ) j="|" ;;
+            3 ) j="/" ;;
+        esac
+        tput rc
+        echo -en "\r[$j] Waiting for other software managers to finish..."
+        is_waiting=1
+
+        LC_ALL=C  sleep 0.5
+        ((i=i+1))
+    done
+
+    # make sure that dpkg/apt still not running
+    if ((is_waiting)) ; then
+        unset is_waiting
+        LC_ALL=C  sleep 3
+        # recursively call it again
+        $FUNCNAME
+    fi
 }
 
 #
