@@ -35,13 +35,13 @@ if [[ -r "$lockfile" ]] ; then
     case "$@" in
         lock)
             if ps aux | grep -v grep | grep -v "$PROCCESS" | grep -E "$(basename $0).*(lock)" ; then
-                el_error "$(basename $0) already running, args '$@', processes:\n$(ps aux | grep -v grep | grep -v "$PROCCESS" | grep "$(basename $0)" )"
+                NOREPORTS=1 el_error "$(basename $0) already running, args '$@', processes:\n$(ps aux | grep -v grep | grep -v "$PROCCESS" | grep "$(basename $0)" )"
                 exit
             fi
             ;;
         suspend|hibernate|stop|shutdown|reboot)
             if ps aux | grep -v grep | grep -v "$PROCCESS" | grep -E "$(basename $0).*(suspend|hibernate|stop|shutdown|reboot)" ; then
-                el_error "$(basename $0) already running, args '$@', processes:\n$(ps aux | grep -v grep | grep -v "$PROCCESS" | grep "$(basename $0)" )"
+                NOREPORTS=1 el_error "$(basename $0) already running, args '$@', processes:\n$(ps aux | grep -v grep | grep -v "$PROCCESS" | grep "$(basename $0)" )"
                 exit
             fi
             ;;
