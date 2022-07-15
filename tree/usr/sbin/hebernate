@@ -68,17 +68,21 @@ case "$1" in
         #sync
         #setvolume unmute
         rm -f /tmp/.hebernate-$USER
-        (
-            soundfile="/usr/share/sounds/elive/system-restored.mp3"
-            precache "$soundfile" 2>/dev/null
-            if [[ -x "$(which mplayer)" ]] ; then
-                timeout 30 mplayer -noconfig all -really-quiet /usr/share/sounds/elive/system-restored.mp3
-            else
-                # FIXME: doesn't works with pulseaudio:
-                timeout 30 mpg123 -q "$soundfile" || true
-            fi
-            check_for_errors
-        ) &
+
+        if ! ((NOVOICE)) && ! ((SILENT)) && \
+            [[ "${hour}" -lt "21" ]] && [[ "$hour" -gt "8" ]] ; then
+            (
+                soundfile="/usr/share/sounds/elive/system-restored.mp3"
+                precache "$soundfile" 2>/dev/null
+                if [[ -x "$(which mplayer)" ]] ; then
+                    timeout 30 mplayer -noconfig all -really-quiet /usr/share/sounds/elive/system-restored.mp3
+                else
+                    # FIXME: doesn't works with pulseaudio:
+                    timeout 30 mpg123 -q "$soundfile" || true
+                fi
+                check_for_errors
+            ) &
+        fi
         exit
         ;;
 
@@ -145,17 +149,20 @@ case "$1" in
         #sync
         #setvolume unmute
         rm -f "/tmp/.hebernate-$USER"
-        (
-            soundfile="/usr/share/sounds/elive/system-restored.mp3"
-            precache "$soundfile" 2>/dev/null
-            if [[ -x "$(which mplayer)" ]] ; then
-                timeout 30 mplayer -noconfig all -really-quiet /usr/share/sounds/elive/system-restored.mp3
-            else
-                # FIXME: doesn't works with pulseaudio:
-                timeout 30 mpg123 -q "$soundfile" || true
-            fi
-            check_for_errors
-        ) &
+        if ! ((NOVOICE)) && ! ((SILENT)) && \
+            [[ "${hour}" -lt "21" ]] && [[ "$hour" -gt "8" ]] ; then
+            (
+                soundfile="/usr/share/sounds/elive/system-restored.mp3"
+                precache "$soundfile" 2>/dev/null
+                if [[ -x "$(which mplayer)" ]] ; then
+                    timeout 30 mplayer -noconfig all -really-quiet /usr/share/sounds/elive/system-restored.mp3
+                else
+                    # FIXME: doesn't works with pulseaudio:
+                    timeout 30 mpg123 -q "$soundfile" || true
+                fi
+                check_for_errors
+            ) &
+        fi
         ;;
     *)
         echo -e "\nElive Suspend/Hibernate tool\nUsage: $(basename $0) (--suspend|--hibernate)"

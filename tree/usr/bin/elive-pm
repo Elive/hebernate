@@ -544,7 +544,9 @@ do_action(){
 
             # play audio of system restored
             hour="$(date +%k)"
-            if [[ "${hour}" -lt "21" ]] && [[ "$hour" -gt "8" ]] ; then
+            if ! ((NOVOICE)) && ! ((SILENT)) && \
+                [[ "${hour}" -lt "21" ]] && [[ "$hour" -gt "8" ]] ; then
+
                 soundfile="/usr/share/sounds/elive/system-restored.mp3"
 
                 if [[ -x "$(which mplayer)" ]] ; then
