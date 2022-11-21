@@ -223,7 +223,7 @@ check_and_inform_when_processes_running(){
 
     # wait for post-install user desktop steps, they needs to finish correctly:
     # but not when in live, otherwise we may have a very slow shutdown due to delayed hooks
-    if ! grep -q "boot=live" /proc/cmdline ; then
+    if ! ((is_live)) ; then
         if ps ux | grep -v grep | grep -v "$$" | grep -qsE "/(user-manager|deliver)/hooks.d/" ; then
 
             ( guitool info "${message_waitingfor} Desktop Setup" & )
@@ -404,7 +404,7 @@ do_action(){
     local message_live_disabled
     message_live_disabled="$( printf "$( eval_gettext "It is not suggested to perform a suspension of your computer while you are using Elive in Live mode. You need to install Elive on your computer to use this feature." )" "" )"
 
-    if grep -q "boot=live" /proc/cmdline ; then
+    if ((is_live)) ; then
         case "$action" in
             suspend|hibernate|suspend-then-hibernate)
                 el_notify normal "drive-removable-media" "Live mode detected" "$message_live_disabled"
@@ -538,7 +538,7 @@ do_action(){
             fi
 
             # always lock if we didn't needed to insert password on boot
-            if ! grep -qs "_crypt.*UUID.*luks" /etc/crypttab ; then
+            if ! ((is_live)) && ! grep -qs "_crypt.*UUID.*luks" /etc/crypttab ; then
                 do_desktop_lock
             fi
 
@@ -595,6 +595,9 @@ main(){
         fi
     fi
 
+    if grep -qs "boot=live" /proc/cmdline ; then
+        is_live=1
+    fi
 
     el_config_get
 
