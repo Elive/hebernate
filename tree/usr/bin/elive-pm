@@ -406,7 +406,7 @@ do_action(){
 
     if ((is_live)) ; then
         case "$action" in
-            suspend|hibernate|suspend-then-hibernate)
+            hibernate|suspend-then-hibernate)
                 el_notify normal "drive-removable-media" "Live mode detected" "$message_live_disabled"
                 exit
                 ;;
