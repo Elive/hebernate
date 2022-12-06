@@ -614,6 +614,15 @@ main(){
                 is_hibernate=1
                 do_action "hibernate"
                 ;;
+            hibernate-or-shutdown)
+                if grep -qsw "swap" /etc/fstab ; then
+                    is_hibernate=1
+                    do_action "hibernate"
+                else
+                    is_shutdown=1
+                    do_action "poweroff"
+                fi
+                ;;
             shutdown|poweroff|halt)
                 is_shutdown=1
                 do_action "poweroff"
