@@ -39,8 +39,8 @@ if [[ -r "$lockfile" ]] ; then
                 exit
             fi
             ;;
-        suspend|hibernate|stop|shutdown|reboot)
-            if ps aux | grep -v grep | grep -v "$PROCCESS" | grep -E "$(basename $0).*(suspend|hibernate|stop|shutdown|reboot)" ; then
+        suspend|hibernate|hibernate-or-shutdown|stop|shutdown|reboot)
+            if ps aux | grep -v grep | grep -v "$PROCCESS" | grep -E "$(basename $0).*(suspend|hibernate|hibernate-or-shutdown|stop|shutdown|reboot)" ; then
                 NOREPORTS=1 el_error "$(basename $0) already running, args '$@', processes:\n$(ps aux | grep -v grep | grep -v "$PROCCESS" | grep "$(basename $0)" )"
                 exit
             fi
@@ -63,7 +63,7 @@ echo "$$" > "$lockfile"
 usage(){
     # Usage
     if [[ -z "${1}" ]] ; then
-        echo -e "Usage: $(basename $BASH_SOURCE) suspend|hibernate|stop|shutdown|reboot|lock"
+        echo -e "Usage: $(basename $BASH_SOURCE) suspend|hibernate|hibernate-or-shutdown|stop|shutdown|reboot|lock"
         echo -e ""
         echo -e "Notes: 'stop' means suspending the system and hibernate it after a while (useful for when you don't know how much time you will stop the system, this should be the default stop of the system)"
         echo -e ""
@@ -358,7 +358,12 @@ do_fallback(){
             #/sbin/poweroff 2>>"$logs_error"
             #is_failed=5
             ;;
-        hibernate|suspend-then-hibernate|stop)
+        suspend-then-hibernate)
+            if ! /usr/sbin/pm-suspend-hybrid ; then
+                el_sudo /usr/sbin/pm-suspend-hybrid
+            fi
+            ;;
+        hibernate|stop)
             if ! /usr/sbin/pm-hibernate ; then
                 el_sudo /usr/sbin/pm-hibernate
             fi
@@ -428,7 +433,7 @@ do_action(){
 
     # check and infor for possible things required
     case "$action" in
-        hibernate)
+        hibernate|suspend-then-hibernate)
             # check if we have a resume configuration
             if ! grep -qsE "LINUX_DEFAULT.*resume=" /etc/default/grub ; then
                 guitool error "$( eval_gettext "Your GRUB configuration doesn't include the details of the swap space (where to perform the hibernation). If you want to have hibernation you should reinstall Elive and add a swap partition." )"
@@ -449,7 +454,7 @@ do_action(){
     esac
 
     # check for enough swap space needed:
-    if echo "$action" | grep -qs "hibernate" ; then
+    if echo "$action" | grep -Fqs "hibernate" ; then
         #mem_used_ram="$( LC_ALL=C free -m -t | grep "^Mem:" | awk '{print $3}' )"
         mem_ram_used="$( LC_ALL=C free -m -t | grep -i "^Total:" | awk '{print $3}' )"
         mem_swap_free="$( LC_ALL=C free -m -t | grep -i "^Swap:" | awk '{print $4}' )"
@@ -519,7 +524,7 @@ do_action(){
     # - errors? }}}
 
     #
-    # BACK from suspsension
+    # BACK from suspension
     #
 
     # let the system finish to come back
@@ -528,7 +533,7 @@ do_action(){
 
 
     case "$action" in
-        suspend|hibernate|suspend-then-hibernate)
+        suspend|hibernate)
             # check for errors
             inform_if_errors "delayed" &
 
@@ -647,8 +652,8 @@ main(){
                 is_reload=1
                 do_desktop_reload
                 ;;
-            stop)
-                is_stop=1
+            stop|"suspend-then-hibernate")
+                #is_stop=1
                 do_action "suspend-then-hibernate"
                 ;;
             *)
