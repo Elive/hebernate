@@ -309,8 +309,8 @@ do_desktop_lock(){
         fi
     else
         if [[ -n "$E_START" ]] ; then
-            #enlightenment_remove -lock
-            enlightenment_remove -desktop-lock
+            #enlightenment_remote -lock
+            enlightenment_remote -desktop-lock
         fi
     fi
 }
