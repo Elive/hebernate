@@ -343,7 +343,7 @@ do_desktop_logout(){
 do_fallback(){
     case "$1" in
         reboot)
-            if ! /sbin/reboot ; then
+            if ! /sbin/reboot 2>/dev/null ; then
                 el_sudo /sbin/reboot
             fi
             # we still here? report
@@ -351,7 +351,7 @@ do_fallback(){
             #is_failed=4
             ;;
         shutdown|poweroff|halt)
-            if ! /sbin/poweroff ; then
+            if ! /sbin/poweroff 2>/dev/null ; then
                 el_sudo /sbin/poweroff
             fi
             # we still here? report
@@ -359,17 +359,17 @@ do_fallback(){
             #is_failed=5
             ;;
         suspend-then-hibernate)
-            if ! /usr/sbin/pm-suspend-hybrid ; then
+            if ! /usr/sbin/pm-suspend-hybrid 2>/dev/null ; then
                 el_sudo /usr/sbin/pm-suspend-hybrid
             fi
             ;;
         hibernate|stop)
-            if ! /usr/sbin/pm-hibernate ; then
+            if ! /usr/sbin/pm-hibernate 2>/dev/null ; then
                 el_sudo /usr/sbin/pm-hibernate
             fi
             ;;
         suspend)
-            if ! /usr/sbin/pm-suspend ; then
+            if ! /usr/sbin/pm-suspend 2>/dev/null ; then
                 el_sudo /usr/sbin/pm-suspend
             fi
             ;;
