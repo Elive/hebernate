@@ -167,12 +167,12 @@ check_and_inform_when_processes_running(){
 
     # TODO: temporal checks: these are meant to be other poweroff processes, we should simply exit in case that they are (already) running?
     if \
-        pidof -xq 'xfce4-power-manager' || \
-        pidof -xq 'mate-power-manager' || \
-        pidof -xq 'dalston-power-applet' || \
-        pidof -xq 'gnome-power-manager' || \
-        pidof -xq 'kpowersave' || \
-        pidof -xq 'guidance-power-manager.py' ; then
+        pidof -zxq 'xfce4-power-manager' || \
+        pidof -zxq 'mate-power-manager' || \
+        pidof -zxq 'dalston-power-applet' || \
+        pidof -zxq 'gnome-power-manager' || \
+        pidof -zxq 'kpowersave' || \
+        pidof -zxq 'guidance-power-manager.py' ; then
         # just report, because we don't know if we should ingore them or not
         el_warning "another poweroff system running?:\n\n$( show_execution_stacks_from_names xfce4-power-manager mate-pwoer-manager dalston-power-applet gnome-power-manager kpowersave guidance-power-manager.py )"
 
@@ -196,12 +196,13 @@ check_and_inform_when_processes_running(){
     # other possible X processes:
     for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount fstrim
     do
-        if pidof -cxq "$watcher" ; then
+        echo "doing $watcher"
+        if pidof -zcxq "$watcher" ; then
             # wait them to finish before to check again: more exactly: elive-upgrader (delayed wait) will close if we are shutting down
             sleep 2
 
             # note: pidof doesn't show processes like "fstrim"
-            #if pidof -cxq "$watcher" ; then
+            #if pidof -zcxq "$watcher" ; then
             if ps axk comm o comm,args | grep -qs "^${watcher}.*${watcher} " ; then
 
                 # show a message after 4 seconds waiting for shutdown computer:
@@ -243,16 +244,16 @@ check_and_inform_when_processes_running(){
 
 check_if_already_shutdown_process(){
     if \
-        pidof -xq '/sbin/pm-suspend' || \
-        pidof -xq '/sbin/pm-suspend-hybrid' || \
-        pidof -xq '/sbin/pm-hibernate' || \
-        pidof -xq '/usr/sbin/pm-suspend' || \
-        pidof -xq '/usr/sbin/pm-suspend-hybrid' || \
-        pidof -xq '/usr/sbin/pm-hibernate' || \
-        pidof -xq '/sbin/shutdown' || \
-        pidof -xq '/sbin/reboot' || \
-        pidof -xq '/usr/sbin/shutdown' || \
-        pidof -xq '/usr/sbin/reboot' || \
+        pidof -zxq '/sbin/pm-suspend' || \
+        pidof -zxq '/sbin/pm-suspend-hybrid' || \
+        pidof -zxq '/sbin/pm-hibernate' || \
+        pidof -zxq '/usr/sbin/pm-suspend' || \
+        pidof -zxq '/usr/sbin/pm-suspend-hybrid' || \
+        pidof -zxq '/usr/sbin/pm-hibernate' || \
+        pidof -zxq '/sbin/shutdown' || \
+        pidof -zxq '/sbin/reboot' || \
+        pidof -zxq '/usr/sbin/shutdown' || \
+        pidof -zxq '/usr/sbin/reboot' || \
         /sbin/runlevel | grep -qs "[06]" ; then
 
         return 1
@@ -393,10 +394,10 @@ do_action(){
     fi
 
     # check if fstrim is running, so we need to wait
-    if pidof -xq '/usr/sbin/fstrim' ; then
+    if pidof -zxq '/usr/sbin/fstrim' ; then
         guitool info "$( eval_gettext "IMPORTANT: FSTRIM is running, we need to wait until it finishes before shutting down. Do not close the computer or you might lose data. Don't worry, Elive automatically will shut down when the process finishes." )" &
 
-        while pidof -xq '/usr/sbin/fstrim' ; do
+        while pidof -zxq '/usr/sbin/fstrim' ; do
             sleep 2
         done
 
@@ -592,7 +593,7 @@ main(){
     logs_error="$( mktemp )"
     el_add_on_exit  rm -f "$logs_error"
 
-    if pidof -cq systemd ; then
+    if pidof -zcq systemd ; then
         is_systemd=1
     else
         if ! [[ -e "/var/lib/dpkg/info/sysvinit-core.list" ]] ; then
