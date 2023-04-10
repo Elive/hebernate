@@ -215,7 +215,7 @@ check_and_inform_when_processes_running(){
                 #log_msg... ?
 
                 #( guitool info "${message_wait_processes_title}. ${message_wait_processes_generic}:\n\n$watcher" & )
-                ( guitool info "${message_wait_processes_generic}:\n\n$watcher" & )
+                ( sleep 5 ; guitool info "${message_wait_processes_generic}:\n\n$watcher" & )
 
                 waitfor $watcher
             fi
