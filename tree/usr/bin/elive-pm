@@ -196,7 +196,7 @@ check_and_inform_when_processes_running(){
     # other possible X processes:
     for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount fstrim
     do
-        echo "doing $watcher"
+        el_debug "checking for process ${watcher}..."
         if pidof -zcxq "$watcher" ; then
             # wait them to finish before to check again: more exactly: elive-upgrader (delayed wait) will close if we are shutting down
             sleep 2
