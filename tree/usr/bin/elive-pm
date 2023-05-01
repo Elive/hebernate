@@ -218,6 +218,7 @@ check_and_inform_when_processes_running(){
                 ( sleep 5 ; guitool info "${message_wait_processes_generic}:\n\n$watcher" & )
 
                 waitfor $watcher
+                sleep 10 ; sync ; sleep 2
             fi
         fi
     done
