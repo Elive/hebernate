@@ -194,7 +194,7 @@ check_and_inform_when_processes_running(){
     fi
 
     # other possible X processes:
-    for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount fstrim
+    for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount fstrim sync-repo
     do
         el_debug "checking for process ${watcher}..."
         if pidof -zcxq "$watcher" ; then
