@@ -158,10 +158,10 @@ check_and_inform_when_processes_running(){
 
 
     # kill possible useless ones {{{
-    for i in tumblerd mpg123 mplayer smplayer vlc rage_thumb
+    for i in tumblerd mpg123 mplayer smplayer vlc rage_thumb mpv mplayer mplayer2 smplayer vlc rage
     do
-        killall "$i"     1>/dev/null 2>&1
-        killall -9 "$i"  1>/dev/null 2>&1
+        killall -q "$i"     1>/dev/null 2>&1
+        killall -q -9 "$i"  1>/dev/null 2>&1
     done
     # - kill possible useless ones }}}
 
