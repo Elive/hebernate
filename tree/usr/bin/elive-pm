@@ -488,7 +488,7 @@ do_action(){
 
         # run
         systemctl "$action"
-        if LC_ALL=C systemctl status "$action" | grep -i failed ; then
+        if LC_ALL=C systemctl status "${action%.*}.target" | grep -i failed ; then
             is_failed=1
         else
             unset is_failed
@@ -499,7 +499,7 @@ do_action(){
             if el_check_sudo_automated ; then
 
                 el_sudo systemctl "$action"
-                if LC_ALL=C systemctl status "$action" | grep -i failed ; then
+                if LC_ALL=C systemctl status "${action%.*}.target" | grep -i failed ; then
                     is_failed=1
                 else
                     unset is_failed
@@ -507,7 +507,7 @@ do_action(){
 
             else
                 is_failed=2
-                #el_warning "no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\n$(cat "$logs_error" )\n$( systemctl status ${action}.target 2>&1 )"
+                #el_warning "no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\n$(cat "$logs_error" )\n$( systemctl status ${action%.*}.target 2>&1 )"
             fi
         fi
     else
@@ -525,7 +525,7 @@ do_action(){
     # show errors if any
     if ((is_failed)) ; then
         if ! [[ -s "$logs_error" ]] ; then
-            dmesg | grep -iE "(hibernate|suspend|shutdown|halt|reboot)" | grep ERROR | sed -e 's|^.*\] \[||g' | uniq | tail -n 10 >> "$logs_error"
+            dmesg | grep -iE "(hibernate|suspend|shutdown|halt|reboot)" | grep ERROR | sed -e 's|^.*\] \[||g' | uniq | sed -e 's|^.*\*ERROR\* ||g' | tail -n 10 >> "$logs_error"
         fi
 
         if [[ -s "$logs_error" ]] ; then
@@ -534,7 +534,7 @@ do_action(){
 
         if ! check_if_already_shutdown_process ; then
             if [[ -n "$( cat "$logs_error" | grep -v "(vmwgfx)" )" ]] ; then
-                el_warning "FAIL with is_failed '$is_failed' code, maybe no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\nlog errosr: $(cat "$logs_error" | sort -u )\nsystemctl status ${action}: $( systemctl status ${action}.target 2>&1 )\ngroups: $(groups)\nwho: $(who)"
+                el_warning "FAIL with is_failed '$is_failed' code, maybe no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\nlog errosr: $(cat "$logs_error" | sort -u )\nsystemctl status ${action}: $( systemctl status ${action%.*}.target 2>&1 )\ngroups: $(groups)\nwho: $(who)"
             fi
         fi
 
