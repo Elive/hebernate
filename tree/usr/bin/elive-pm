@@ -347,6 +347,7 @@ do_fallback(){
         reboot)
             if ! /sbin/reboot 2>/dev/null ; then
                 el_sudo /sbin/reboot
+                return $?
             fi
             # we still here? report
             #/sbin/reboot 2>>"$logs_error"
@@ -355,6 +356,7 @@ do_fallback(){
         shutdown|poweroff|halt)
             if ! /sbin/poweroff 2>/dev/null ; then
                 el_sudo /sbin/poweroff
+                return $?
             fi
             # we still here? report
             #/sbin/poweroff 2>>"$logs_error"
@@ -363,16 +365,19 @@ do_fallback(){
         suspend-then-hibernate)
             if ! /usr/sbin/pm-suspend-hybrid 2>/dev/null ; then
                 el_sudo /usr/sbin/pm-suspend-hybrid
+                return $?
             fi
             ;;
         hibernate|stop)
             if ! /usr/sbin/pm-hibernate 2>/dev/null ; then
                 el_sudo /usr/sbin/pm-hibernate
+                return $?
             fi
             ;;
         suspend)
             if ! /usr/sbin/pm-suspend 2>/dev/null ; then
                 el_sudo /usr/sbin/pm-suspend
+                return $?
             fi
             ;;
     esac
