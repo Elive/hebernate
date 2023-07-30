@@ -510,12 +510,18 @@ do_action(){
     # errors? {{{
     # show errors if any
     if ((is_failed)) ; then
+        if ! [[ -s "$logs_error" ]] ; then
+            dmesg | grep -iE "(hibernate|suspend|shutdown|halt|reboot)" | grep ERROR | sed -e 's|^.*\] \[||g' | uniq | tail -n 10 >> "$logs_error"
+        fi
+
         if [[ -s "$logs_error" ]] ; then
             guitool error "$( cat "$logs_error" | sort -u )"
         fi
 
         if ! check_if_already_shutdown_process ; then
-            el_warning "FAIL with is_failed '$is_failed' code, maybe no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\nlog errosr: $(cat "$logs_error" | sort -u )\nsystemctl status ${action}: $( systemctl status ${action}.target 2>&1 )\ngroups: $(groups)\nwho: $(who)"
+            if [[ -n "$( cat "$logs_error" | grep -v "(vmwgfx)" )" ]] ; then
+                el_warning "FAIL with is_failed '$is_failed' code, maybe no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\nlog errosr: $(cat "$logs_error" | sort -u )\nsystemctl status ${action}: $( systemctl status ${action}.target 2>&1 )\ngroups: $(groups)\nwho: $(who)"
+            fi
         fi
 
         # do not continue with the "BACK" state if we failed, stop here
