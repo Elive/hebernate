@@ -385,7 +385,7 @@ do_fallback(){
 
 do_action(){
     # pre {{{
-    local action
+    local action is_failed
 
     action="$1"
     shift
@@ -485,17 +485,26 @@ do_action(){
     sync
 
     if ((is_systemd)) ; then
-        if systemctl "$action" 2>>"$logs_error" ; then
-            true
+
+        # run
+        systemctl "$action"
+        if LC_ALL=C systemctl status "$action" | grep -i failed ; then
+            is_failed=1
         else
+            unset is_failed
+        fi
+
+        if ((is_failed)) ; then
             # maybe with sudo?
             if el_check_sudo_automated ; then
 
-                if el_sudo systemctl "$action" 2>>"$logs_error" ; then
-                    true
-                else
+                el_sudo systemctl "$action"
+                if LC_ALL=C systemctl status "$action" | grep -i failed ; then
                     is_failed=1
+                else
+                    unset is_failed
                 fi
+
             else
                 is_failed=2
                 #el_warning "no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\n$(cat "$logs_error" )\n$( systemctl status ${action}.target 2>&1 )"
