@@ -457,13 +457,13 @@ do_action(){
 
     # check for enough swap space needed:
     if echo "$action" | grep -Fqs "hibernate" ; then
-        #mem_used_ram="$( LC_ALL=C free -m -t | grep "^Mem:" | awk '{print $3}' )"
+        #mem_ram_used="$( LC_ALL=C free -m -t | grep "^Mem:" | awk '{print $3}' )"
         mem_ram_used="$( LC_ALL=C free -m -t | grep -i "^Total:" | awk '{print $3}' )"
         mem_swap_free="$( LC_ALL=C free -m -t | grep -i "^Swap:" | awk '{print $4}' )"
         mem_swap_free="$( echo "${mem_swap_free} - (( ${mem_swap_free} / 100 ) * 10 )" | LC_ALL=C bc -l | sed -e 's|\..*$||' )" # reduce the free space number to its 90%
 
-        if [[ "$mem_used_ram" -ge "${mem_swap_free}" ]] ; then
-            el_info "Required SWAP free space is not enough (RAM used '${mem_used_ram}', Swap free space '${mem_swap_free}'). Going to fre esome memory..."
+        if [[ "$mem_ram_used" -ge "${mem_swap_free}" ]] ; then
+            el_info "Required SWAP free space is not enough (RAM used '${mem_ram_used}', Swap free space '${mem_swap_free}'). Going to fre esome memory..."
             for i in chrome chromium google-chrome firefox firefox-esr palemoon tumblerd opera
             do
                 el_debug "killing $i"
