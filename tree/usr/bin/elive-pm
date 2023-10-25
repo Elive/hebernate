@@ -194,7 +194,7 @@ check_and_inform_when_processes_running(){
     fi
 
     # other possible X processes:
-    for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount fstrim sync-repo
+    for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount fstrim btrfs sync-repo
     do
         el_debug "checking for process ${watcher}..."
         if pidof -zcxq "$watcher" ; then
@@ -404,6 +404,18 @@ do_action(){
         guitool info "$( eval_gettext "IMPORTANT: FSTRIM is running, we need to wait until it finishes before shutting down. Do not close the computer or you might lose data. Don't worry, Elive automatically will shut down when the process finishes." )" &
 
         while pidof -zxq '/usr/sbin/fstrim' ; do
+            sleep 2
+        done
+
+        # flush
+        sleep 1 ; sync ; sleep 4
+    fi
+
+    # check if btrfs is running, so we need to wait
+    if pidof -zxq '/usr/bin/btrfs' ; then
+        guitool info "$( eval_gettext "IMPORTANT: BTRFS is running, we need to wait until it finishes before shutting down. Do not close the computer or you might lose data. Don't worry, Elive automatically will shut down when the process finishes." )" &
+
+        while pidof -zxq '/usr/bin/btrfs' ; do
             sleep 2
         done
 
