@@ -30,6 +30,23 @@ check_for_errors(){
     done
 }
 
+if [[ -x "$( which mpv )" ]] ; then
+    if [[ -e "/var/lib/dpkg/info/pulseaudio.list" ]] && [[ -n "$(pidof pulseaudio)" ]] ; then
+        mplayer="mpv --really-quiet --no-terminal --no-video --no-config --no-input-terminal --no-osc --no-input-cursor --ao=pulse"
+    else
+        mplayer="mpv --really-quiet --no-terminal --no-video --no-config --no-input-terminal --no-osc --no-input-cursor --ao=alsa"
+    fi
+else
+    if [[ -x "$( which mplayer )" ]] ; then
+        if [[ -e "/var/lib/dpkg/info/pulseaudio.list" ]] && [[ -n "$(pidof pulseaudio)" ]] ; then
+            mplayer="mplayer -noconfig all -really-quiet -nojoystick -nolirc -ao pulse"
+        else
+            mplayer="mplayer -noconfig all -really-quiet -nojoystick -nolirc -ao alsa"
+        fi
+    fi
+fi
+
+
 case "$1" in
     --suspend|suspend)
         #warning-messages-elive suspend
@@ -74,12 +91,7 @@ case "$1" in
             (
                 soundfile="/usr/share/sounds/elive/system-restored.mp3"
                 precache "$soundfile" 2>/dev/null
-                if [[ -x "$(which mplayer)" ]] ; then
-                    timeout 30 mplayer -noconfig all -really-quiet /usr/share/sounds/elive/system-restored.mp3
-                else
-                    # FIXME: doesn't works with pulseaudio:
-                    timeout 30 mpg123 -q "$soundfile" || true
-                fi
+                timeout 30 $mplayer /usr/share/sounds/elive/system-restored.mp3
                 check_for_errors
             ) &
         fi

@@ -588,8 +588,8 @@ do_action(){
 
                 soundfile="/usr/share/sounds/elive/system-restored.mp3"
 
-                if [[ -x "$(which mplayer)" ]] ; then
-                    ( precache "$soundfile" 2>/dev/null ; timeout 30 mplayer -noconfig all -really-quiet "$soundfile" & )
+                if [[ -x "$(which "$( basename "$mplayer" | awk '{print $1}' )" )" ]] ; then
+                    ( precache "$soundfile" 2>/dev/null ; timeout 30 $mplayer "$soundfile" & )
                 else
                     el_speak_text "welcome back to ailive"
                 fi
@@ -636,6 +636,22 @@ main(){
 
     if grep -qs "boot=live" /proc/cmdline ; then
         is_live=1
+    fi
+
+    if [[ -x "$( which mpv )" ]] ; then
+        if [[ -e "/var/lib/dpkg/info/pulseaudio.list" ]] && [[ -n "$(pidof pulseaudio)" ]] ; then
+            mplayer="mpv --really-quiet --no-terminal --no-video --no-config --no-input-terminal --no-osc --no-input-cursor --ao=pulse"
+        else
+            mplayer="mpv --really-quiet --no-terminal --no-video --no-config --no-input-terminal --no-osc --no-input-cursor --ao=alsa"
+        fi
+    else
+        if [[ -x "$( which mplayer )" ]] ; then
+            if [[ -e "/var/lib/dpkg/info/pulseaudio.list" ]] && [[ -n "$(pidof pulseaudio)" ]] ; then
+                mplayer="mplayer -noconfig all -really-quiet -nojoystick -nolirc -ao pulse"
+            else
+                mplayer="mplayer -noconfig all -really-quiet -nojoystick -nolirc -ao alsa"
+            fi
+        fi
     fi
 
     el_config_get
