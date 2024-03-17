@@ -211,7 +211,7 @@ check_and_inform_when_processes_running(){
                 #el_speak_text "Please wait, some processes are still running. Wating for $watcher"
 
                 # TODO: temporal report:
-                el_warning "$(basename $0): waiting for process: $watcher"
+                NOREPORTS=1 el_warning "$(basename $0): waiting for process: $watcher"
                 #log_msg... ?
 
                 #( guitool info "${message_wait_processes_title}. ${message_wait_processes_generic}:\n\n$watcher" & )
