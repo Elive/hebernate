@@ -294,16 +294,23 @@ inform_if_errors(){
 }
 
 do_desktop_lock(){
+    mode="$1"
+    shift
+
     # e16
     if [[ -n "$EROOT" ]] ; then
         if [[ -x "$(which i3lock-fancy)" ]] ; then
-            ( sleep 6 ; xset dpms force off ; ) &
+            if [[ "$mode" = "blank" ]] ; then
+                ( sleep 6 ; xset dpms force off ; ) &
+            fi
             i3lock-fancy -g
 
             waitfor i3lock-fancy && xset dpms 0 0 0
         else
             if [[ -x "$(which i3lock)" ]] ; then
-                ( sleep 6 ; xset dpms force off ; ) &
+                if [[ "$mode" = "blank" ]] ; then
+                    ( sleep 6 ; xset dpms force off ; ) &
+                fi
                 i3lock -f -c 000000
 
                 waitfor i3lock && xset dpms 0 0 0
@@ -578,7 +585,11 @@ do_action(){
 
             # always lock if we didn't needed to insert password on boot
             if ! ((is_live)) && ! grep -qs "_crypt.*UUID.*luks" /etc/crypttab ; then
-                do_desktop_lock
+                if [[ "$action" = "suspend" ]] ; then
+                    do_desktop_lock blank
+                else
+                    do_desktop_lock
+                fi
             fi
 
             # play audio of system restored
