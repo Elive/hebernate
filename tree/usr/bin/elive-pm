@@ -610,7 +610,7 @@ do_action(){
                 soundfile="/usr/share/sounds/elive/system-restored.mp3"
 
                 if [[ -x "$(which "$( basename "$mplayer" | awk '{print $1}' )" )" ]] ; then
-                    ( precache "$soundfile" 2>/dev/null ; timeout 30 $mplayer "$soundfile" & )
+                    ( precache "$soundfile" 2>/dev/null 1>&2 ; timeout 30 $mplayer "$soundfile" & )
                 else
                     el_speak_text "welcome back to ailive"
                 fi
