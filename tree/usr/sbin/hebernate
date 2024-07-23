@@ -31,14 +31,14 @@ check_for_errors(){
 }
 
 if [[ -x "$( which mpv )" ]] ; then
-    if [[ -e "/var/lib/dpkg/info/pulseaudio.list" ]] && [[ -n "$(pidof pulseaudio)" ]] ; then
+    if el_pulseaudio check ; then
         mplayer="mpv --really-quiet --no-terminal --no-video --no-config --no-input-terminal --no-osc --no-input-cursor --ao=pulse"
     else
         mplayer="mpv --really-quiet --no-terminal --no-video --no-config --no-input-terminal --no-osc --no-input-cursor --ao=alsa"
     fi
 else
     if [[ -x "$( which mplayer )" ]] ; then
-        if [[ -e "/var/lib/dpkg/info/pulseaudio.list" ]] && [[ -n "$(pidof pulseaudio)" ]] ; then
+        if el_pulseaudio check ; then
             mplayer="mplayer -noconfig all -really-quiet -nojoystick -nolirc -ao pulse"
         else
             mplayer="mplayer -noconfig all -really-quiet -nojoystick -nolirc -ao alsa"
