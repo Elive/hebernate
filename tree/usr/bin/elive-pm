@@ -430,7 +430,7 @@ do_action(){
 
     # check if btrfs is running, so we need to wait
     if pidof -zxq '/usr/bin/btrfs' ; then
-        guitool nobuttons "$( eval_gettext "IMPORTANT: Tasks for BTRFS are currently running. It is very important to wait until they finish before shutting down the computer or you can lose your data. But don't worry, Elive will automatically shut down your computer once these processes are completed, so you can leave it like this." )" &
+        guitool nobuttons "$( eval_gettext "IMPORTANT: There are tasks for BTRFS currently running. It is very important to wait until they finish before shutting down the computer or you can lose your data. But don't worry, Elive will automatically shut down your computer once these processes are completed, so you can leave it like this." )" &
 
         while pidof -zxq '/usr/bin/btrfs' ; do
             sleep 5
