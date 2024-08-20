@@ -23,7 +23,7 @@ check_for_errors(){
         lines="$( dmesg | tail -n 30 | grep -i error | grep -qi sector )"
 
         if [[ "$lines" -gt "3" ]] ; then
-            $guitool --info --text="$( eval_gettext "Warning: It seems like there were errors on your hard disk after suspend / hibernate. If you find errors on your hard disk, you should shut down your computer and stop using these features immediately. Not doing so may cause data loss. You can inspect these messages using the command:" )"
+            $guitool --info --text="$( eval_gettext "Warning: It appears there were errors on your hard disk after suspend / hibernate. If you find errors on your hard disk, you should shut down your computer and stop using these features immediately. Failure to do so may result in data loss. You can inspect these messages using the command:" )"
         fi
 
         sleep 3
