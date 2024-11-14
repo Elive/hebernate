@@ -193,7 +193,7 @@ check_and_inform_when_processes_running(){
     # apt / dpkg processes
     if fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock  1>/dev/null 2>&1 ; then
         local message_wait_processes
-        message_wait_processes="$( printf "$( eval_gettext "Some package manager(s) are still running, possibly performing a system upgrade. Your computer will automatically shut down after these processes finish." )" "" )"
+        message_wait_processes="$( printf "$( eval_gettext "There is a package manager still running, possibly performing a system upgrade. Your computer will automatically shut down after these processes finish." )" "" )"
 
         # seems like desktop is off, so we cannot send a notify message?
         ( guitool info "$message_wait_processes" & )
@@ -292,7 +292,7 @@ inform_if_errors(){
     # vbox errors:
     lines_tmp="$( echo "$lines" | grep -iE "(vminfo.*error|VERR_NOT_SUPPORTED|error.*virtualbox)" )"
     if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
-        guitool warning "$( eval_gettext "It is possible that your virtual environment does not support the suspension or hibernation features. You can check your system logs using the command:" ) dmesg"
+        guitool warning "$( eval_gettext "It is possible that your virtual environment does not support the suspension or hibernation features. You can check your system logs by using the command:" ) dmesg"
         #el_warning "possible vbox errors: $( echo "$lines" | tail -10 )"
     fi
 
@@ -418,7 +418,7 @@ do_action(){
 
     # check if fstrim is running, so we need to wait
     if pidof -zxq '/usr/sbin/fstrim' ; then
-        guitool nobuttons "$( eval_gettext "IMPORTANT: FSTRIM is running. Please wait until it finishes before shutting down. Do not close the computer, as you might lose data. Don't worry, Elive will automatically shut down when the process finishes, so you can leave it like this." )" &
+        guitool nobuttons "$( eval_gettext "IMPORTANT: FSTRIM is running. Please wait until it finishes before shutting down. Do not close the computer, as you might lose data. Don't worry, Elive will automatically shut down when the process is complete, so you can leave it like this." )" &
 
         while pidof -zxq '/usr/sbin/fstrim' ; do
             sleep 5
@@ -430,7 +430,7 @@ do_action(){
 
     # check if btrfs is running, so we need to wait
     if pidof -zxq '/usr/bin/btrfs' ; then
-        guitool nobuttons "$( eval_gettext "IMPORTANT: There are BTRFS tasks currently running. It is very important to wait until they finish before shutting down the computer, as you can lose your data. But don't worry, Elive will automatically shut down your computer once these processes are completed, so you can leave it like this." )" &
+        guitool nobuttons "$( eval_gettext "IMPORTANT: There are BTRFS tasks currently running. It is very important to wait until they finish before shutting down the computer, as you can lose your data. But don't worry, Elive will automatically shut down your computer once these processes is complete, so you can leave it like this." )" &
 
         while pidof -zxq '/usr/bin/btrfs' ; do
             sleep 5
@@ -472,7 +472,7 @@ do_action(){
         hibernate|suspend-then-hibernate)
             # check if we have a resume configuration
             if ! grep -qsE "LINUX_DEFAULT.*resume=" /etc/default/grub ; then
-                guitool error "$( eval_gettext "Your GRUB configuration lacks details about the swap space needed for hibernation. To enable hibernation, reinstall Elive with a swap partition." )"
+                guitool error "$( eval_gettext "Your GRUB configuration is missing the Swap entry, which is necessary for hibernation. To enable hibernation, please reinstall Elive with a swap partition." )"
                 exit
             fi
             # check for using swap space:
