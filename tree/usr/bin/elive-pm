@@ -177,7 +177,7 @@ check_and_inform_when_processes_running(){
 
 
     # kill possible useless ones {{{
-    for i in tumblerd mpg123 mplayer smplayer vlc rage_thumb mpv mplayer mplayer2 smplayer vlc rage
+    for i in mpg123 mplayer smplayer vlc rage_thumb mpv mplayer mplayer2 smplayer vlc rage
     do
         el_debug "killing $i"
         killall -q "$i"     1>/dev/null 2>&1
@@ -211,7 +211,7 @@ check_and_inform_when_processes_running(){
     fi
 
     # other possible X processes:
-    for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount fstrim btrfs btrfs-cleaner btrfs-transaction sync-repo
+    for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount fstrim sync-repo
     do
         el_debug "checking for process ${watcher}..."
         # note: pidof doesn't show processes like "fstrim"
