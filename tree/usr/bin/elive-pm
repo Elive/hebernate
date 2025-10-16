@@ -205,19 +205,20 @@ check_and_inform_when_processes_running(){
     for watcher in elive-upgrader mkdeb apt apt-get dpkg fsck sync umount fstrim btrfs btrfs-cleaner btrfs-transaction sync-repo
     do
         el_debug "checking for process ${watcher}..."
-        if pidof -zcxq "$watcher" ; then
+        # note: pidof doesn't show processes like "fstrim"
+        #if pidof -zcxq "$watcher" ; then
+        if ps axk comm o comm,args | grep -Eqs "^${watcher}.*${watcher}\s*$" ; then
             # wait them to finish before to check again: more exactly: elive-upgrader (delayed wait) will close if we are shutting down
             sleep 2
 
-            # note: pidof doesn't show processes like "fstrim"
-            #if pidof -zcxq "$watcher" ; then
-            if ps axk comm o comm,args | grep -qs "^${watcher}.*${watcher} " ; then
+            if ps axk comm o comm,args | grep -Eqs "^${watcher}.*${watcher}\s*$" ; then
                 # Show GUI message repeatedly until process finishes
                 if [[ -n "$DISPLAY" ]] ; then
-                    if pidof -zcxq "$watcher" ; then
+                    if ps axk comm o comm,args | grep -Eqs "^${watcher}.*${watcher}\s*$" ; then
                         ( guitool nobuttons "${message_waitingfor} $watcher" ) &
                         local subshell_pid=$!
-                        while pidof -zcxq "$watcher" ; do
+                        # while pidof -zcxq "$watcher" ; do
+                        while ps axk comm o comm,args | grep -Eqs "^${watcher}.*${watcher}\s*$" ; do
                             sleep 2
                         done
                         pkill -P "$subshell_pid" 2>/dev/null
