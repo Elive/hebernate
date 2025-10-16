@@ -219,7 +219,7 @@ check_and_inform_when_processes_running(){
                         # while pidof -zcxq "$watcher" ; do
                         while ps axk comm o comm,args | grep -Eqs "^${watcher}.*${watcher}\s*$" ; do
                             if [[ -z "$subshell_pid" ]] || ! ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
-                                ( guitool nobuttons "${message_waitingfor} $watcher" ) &
+                                ( guitool nobuttons "${message_waitingfor}\n\n$watcher" ) &
                                 subshell_pid=$!
                             fi
                             sleep 2
@@ -249,7 +249,7 @@ check_and_inform_when_processes_running(){
                     local subshell_pid
                     while ps ux | grep -v grep | grep -v "$$" | grep -qsE "/(user-manager|deliver)/hooks.d/" ; do
                         if [[ -z "$subshell_pid" ]] || ! ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
-                            ( guitool nobuttons "${message_waitingfor} Desktop Setup" ) &
+                            ( guitool nobuttons "${message_waitingfor}\n\nDesktop Setup" ) &
                             subshell_pid=$!
                         fi
                         sleep 2
