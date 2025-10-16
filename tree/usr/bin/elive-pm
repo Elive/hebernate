@@ -63,9 +63,18 @@ echo "$$" > "$lockfile"
 usage(){
     # Usage
     if [[ -z "${1}" ]] ; then
-        echo -e "Usage: $(basename $BASH_SOURCE) suspend|hibernate|hibernate-or-shutdown|stop|shutdown|reboot|lock"
-        echo -e ""
-        echo -e "Notes: 'stop' means suspending the system and hibernate it after a while (useful for when you don't know how much time you will stop the system, this should be the default stop of the system)"
+        echo -e "Usage: $(basename "$BASH_SOURCE") <action>"
+        echo -e "\nAvailable actions:"
+        echo -e "  suspend             - Suspend the system to RAM."
+        echo -e "  hibernate           - Hibernate the system to disk."
+        echo -e "  hibernate-or-shutdown - Attempt to hibernate; if not possible, shut down."
+        echo -e "  stop / suspend-then-hibernate - Suspend, then hibernate after a period (recommended default)."
+        echo -e "  shutdown / poweroff / halt - Shut down the system."
+        echo -e "  reboot              - Reboot the system."
+        echo -e "  lock                - Lock the desktop session."
+        echo -e "  logout              - Log out of the current desktop session."
+        echo -e "  logoutmenu          - Display the logout menu."
+        echo -e "  reload              - Reload the desktop session."
         echo -e ""
         exit 1
     fi
@@ -155,16 +164,16 @@ check_and_inform_when_processes_running(){
     local watcher
 
     local message_wait_processes_title
-    message_wait_processes_title="$( printf "$( eval_gettext "Waiting for processes to complete" )" "" )"
+    message_wait_processes_title="$( printf "$( eval_gettext "Waiting for Processes to Complete" )" "" )"
 
     local message_wait_processes_generic
-    message_wait_processes_generic="$( printf "$( eval_gettext "Your computer will shutdown after some remaining processes finish." )" "" )"
+    message_wait_processes_generic="$( printf "$( eval_gettext "Your computer will shut down automatically after all remaining processes finish." )" "" )"
 
 
     # - pre }}}
 
     local message_waitingfor
-    message_waitingfor="$( printf "$( eval_gettext "Some processes are still running. Waiting for them to complete:" )" "" )"
+    message_waitingfor="$( printf "$( eval_gettext "The following processes are still running. Waiting for them to complete:" )" "" )"
 
 
     # kill possible useless ones {{{
@@ -185,16 +194,16 @@ check_and_inform_when_processes_running(){
         pidof -zxq 'kpowersave' || \
         pidof -zxq 'guidance-power-manager.py' ; then
         # just report, because we don't know if we should ingore them or not
-        el_warning "another poweroff system running?:\n\n$( show_execution_stacks_from_names xfce4-power-manager mate-pwoer-manager dalston-power-applet gnome-power-manager kpowersave guidance-power-manager.py )"
+        el_warning "Another power management system might be running:\n\n$( show_execution_stacks_from_names xfce4-power-manager mate-pwoer-manager dalston-power-applet gnome-power-manager kpowersave guidance-power-manager.py )"
 
-        #( guitool warning "Seems like we have other poweroff services already running?"  & )
+        guitool warning "$( eval_gettext "Another power management service appears to be active. Please ensure only one power manager is running to avoid conflicts." )" &
     fi
 
 
     # apt / dpkg processes
     if fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock  1>/dev/null 2>&1 ; then
         local message_wait_processes
-        message_wait_processes="$( printf "$( eval_gettext "There is a package manager still running, possibly performing a system upgrade. Your computer will automatically shut down after these processes finish." )" "" )"
+        message_wait_processes="$( printf "$( eval_gettext "A package manager is currently running (e.g., performing a system upgrade). Your computer will automatically shut down once these processes are complete." )" "" )"
 
         # If there's a desktop, the apt_dpkg_wait function will handle the GUI message loop.
         # Otherwise, it will show a console spinner.
@@ -219,7 +228,7 @@ check_and_inform_when_processes_running(){
                         # while pidof -zcxq "$watcher" ; do
                         while ps axk comm o comm,args | grep -Eqs "^${watcher}.*${watcher}\s*$" ; do
                             if [[ -z "$subshell_pid" ]] || ! ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
-                                ( guitool nobuttons "${message_waitingfor}\n\n$watcher" ) &
+                                ( guitool nobuttons "${message_waitingfor}\n\n${watcher}" ) &
                                 subshell_pid=$!
                             fi
                             sleep 2
@@ -231,7 +240,7 @@ check_and_inform_when_processes_running(){
                     fi
                 else
                     # Fallback for non-GUI environments
-                    NOREPORTS=1 el_warning "$(basename $0): waiting for process: $watcher"
+                    NOREPORTS=1 el_warning "$(basename "$0"): Waiting for process: ${watcher}"
                     waitfor "$watcher"
                     sleep 10 ; sync ; sleep 2
                 fi
@@ -249,7 +258,7 @@ check_and_inform_when_processes_running(){
                     local subshell_pid
                     while ps ux | grep -v grep | grep -v "$$" | grep -qsE "/(user-manager|deliver)/hooks.d/" ; do
                         if [[ -z "$subshell_pid" ]] || ! ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
-                            ( guitool nobuttons "${message_waitingfor}\n\nDesktop Setup" ) &
+                            ( guitool nobuttons "${message_waitingfor}\n\nDesktop Environment Setup" ) &
                             subshell_pid=$!
                         fi
                         sleep 2
@@ -261,7 +270,7 @@ check_and_inform_when_processes_running(){
                 fi
             else
                 # Fallback for non-GUI environments
-                el_info "${message_waitingfor} Desktop Setup"
+                el_info "${message_waitingfor} Desktop Environment Setup"
                 # wait them to finish
                 while true
                 do
@@ -308,20 +317,20 @@ inform_if_errors(){
 
     # HD data loss?
     if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
-        guitool warning "$( eval_gettext "The following error messages have been found in your system. This could be due to disconnecting an external hard disk without ejecting it, or possibly the Suspend features are not working properly on your computer. In any case, you need to check the source of this issue as it can cause data loss. It is also crucial to ensure that your hard disk is always in a healthy state." ) dmesg\n\n$( echo "${lines_tmp}" | sort -u | tail -n 50 )"
+        guitool warning "$( eval_gettext "Warning: System errors detected after resuming. This may be caused by improperly ejecting an external disk or a problem with suspend/hibernate, which can lead to data loss. Please review the errors below and check your disk health." ) dmesg\n\n$( echo "${lines_tmp}" | sort -u | tail -n 50 )"
         el_warning "possible data loss recovering from suspension / hibernation: $( echo "$lines" | tail -10 )"
     fi
 
     # vbox errors:
     lines_tmp="$( echo "$lines" | grep -iE "(vminfo.*error|VERR_NOT_SUPPORTED|error.*virtualbox)" )"
     if [[ "$( echo "$lines_tmp" | wc -l )" -gt "3" ]] ; then
-        guitool warning "$( eval_gettext "It is possible that your virtual environment does not support the suspension or hibernation features. You can check your system logs by using the command:" ) dmesg"
+        guitool warning "$( eval_gettext "Your virtual environment may not support suspend or hibernate. For more details, check your system logs with the command:" ) dmesg"
         #el_warning "possible vbox errors: $( echo "$lines" | tail -10 )"
     fi
 
     lines_tmp="$( echo "$lines" | grep -iE "\[ cut here \]" )"
     if [[ "$( echo "$lines_tmp" | wc -l )" -gt "1" ]] ; then
-        guitool warning "$( eval_gettext "Some system messages have been found after recovery. You can check them using the command:" ) dmesg"
+        guitool warning "$( eval_gettext "System messages were found after recovery. You can review them with the command:" ) dmesg"
         el_warning "possible backtrace founds: $( echo "$lines" | tail -n 42 )"
     fi
 }
@@ -435,7 +444,7 @@ do_action(){
 
     # check if system is already shutting down from another process
     if ! check_if_already_shutdown_process ; then
-        guitool info "$( eval_gettext "Ignoring action, system is already shutting down" )"
+        guitool info "$( eval_gettext "Action canceled: The system is already shutting down or rebooting." )"
         exit
     fi
 
@@ -444,7 +453,7 @@ do_action(){
         local subshell_pid
         while pidof -zxq '/usr/sbin/fstrim' ; do
             if [[ -z "$subshell_pid" ]] || ! ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
-                ( guitool nobuttons "$( eval_gettext "IMPORTANT: FSTRIM is running. Please wait until it finishes before shutting down. Do not close the computer, as you might lose data. Don't worry, Elive will automatically shut down when the process is complete, so you can leave it like this." )" ) &
+                ( guitool nobuttons "$( eval_gettext "IMPORTANT: The FSTRIM process is running. Please wait for it to finish to prevent data loss. The system will shut down automatically once it's complete." )" ) &
                 subshell_pid=$!
             fi
             sleep 5
@@ -465,7 +474,7 @@ do_action(){
             local subshell_pid
             while pidof -zxq '/usr/bin/btrfs' ; do
                 if [[ -z "$subshell_pid" ]] || ! ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
-                    ( guitool nobuttons "$( eval_gettext "IMPORTANT: There are BTRFS tasks currently running. It is very important to wait until they finish before shutting down the computer, as you can lose your data. But don't worry, Elive will automatically shut down your computer once these processes is complete, so you can leave it like this." )" ) &
+                    ( guitool nobuttons "$( eval_gettext "IMPORTANT: BTRFS tasks are running. It is crucial to let them finish to avoid data loss. Your system will automatically shut down once these tasks are complete." )" ) &
                     subshell_pid=$!
                 fi
                 sleep 5
@@ -484,12 +493,12 @@ do_action(){
 
     # live mode?
     local message_live_disabled
-    message_live_disabled="$( printf "$( eval_gettext "It is not recommended to perform a suspension of your computer while using Elive in Live mode. You need to install Elive on your computer to use this feature." )" "" )"
+    message_live_disabled="$( printf "$( eval_gettext "Suspend and Hibernate are not available in Live mode. Please install Elive to use these features." )" "" )"
 
     if ((is_live)) ; then
         case "$action" in
             hibernate|suspend-then-hibernate)
-                el_notify normal "drive-removable-media" "Live mode detected" "$message_live_disabled"
+                el_notify normal "drive-removable-media" "Live Mode Limitation" "$message_live_disabled"
                 exit
                 ;;
         esac
@@ -511,19 +520,19 @@ do_action(){
     # check and infor for possible things required
     case "$action" in
         hibernate|suspend-then-hibernate)
-            # check if we have a resume configuration
+            # Check for a resume configuration in GRUB
             if ! grep -qsE "LINUX_DEFAULT.*resume=" /etc/default/grub ; then
-                guitool error "$( eval_gettext "Your GRUB configuration is missing the Swap entry, which is necessary for hibernation. To enable hibernation, please reinstall Elive with a swap partition." )"
+                guitool error "$( eval_gettext "Hibernation requires a 'resume' parameter in your GRUB configuration that points to your swap partition. Add it to enable this feature." )"
                 exit
             fi
-            # check for using swap space:
+            # Check for active swap space:
             if [[ "$( LC_ALL="$EL_LC_EN" free -m | grep -i "^Swap:" | awk '{print $2}' )" = 0 ]] ; then
                 if grep -qsw "swap" /etc/fstab ; then
                     gksu "swapon -a"
                     sync
                 fi
                 if [[ "$( LC_ALL="$EL_LC_EN" free -m | grep -i "^Swap:" | awk '{print $2}' )" = 0 ]] ; then
-                    guitool warning "$( eval_gettext "You do not have a swap partition required for hibernation. Consider reinstalling Elive with a swap partition." )"
+                    guitool warning "$( eval_gettext "No active swap partition was found. Hibernation requires an active swap partition. Ensure one is configured and enabled." )"
                     exit
                 fi
             fi
@@ -535,13 +544,13 @@ do_action(){
         #mem_ram_used="$( LC_ALL=C free -m -t | grep "^Mem:" | awk '{print $3}' )"
         mem_ram_used="$( LC_ALL=C free -m -t | grep -i "^Total:" | awk '{print $3}' )"
         mem_swap_free="$( LC_ALL=C free -m -t | grep -i "^Swap:" | awk '{print $4}' )"
-        mem_swap_free="$( echo "${mem_swap_free} - (( ${mem_swap_free} / 100 ) * 10 )" | LC_ALL=C bc -l | sed -e 's|\..*$||' )" # reduce the free space number to its 90%
+        mem_swap_free="$( echo "${mem_swap_free} - (( ${mem_swap_free} / 100 ) * 10 )" | LC_ALL=C bc -l | sed -e 's|\..*$||' )" # reduce the free space number to 90%
 
         if [[ "$mem_ram_used" -ge "${mem_swap_free}" ]] ; then
-            el_info "Required SWAP free space is not enough (RAM used '${mem_ram_used}', Swap free space '${mem_swap_free}'). Going to free some memory..."
+            el_info "$( eval_gettext "Not enough SWAP space for hibernation (RAM used: ${mem_ram_used}MB, Swap free: ${mem_swap_free}MB). Attempting to free memory..." )"
             for i in chrome chromium google-chrome firefox firefox-esr palemoon tumblerd opera
             do
-                el_debug "killing $i to free memory"
+                el_debug "Killing process $i to free memory for hibernation."
                 killall "$i"     1>/dev/null 2>&1
                 killall -9 "$i"  1>/dev/null 2>&1
             done
@@ -602,9 +611,12 @@ do_action(){
             guitool error "$( cat "$logs_error" | sort -u )"
         fi
 
-        if ! check_if_already_shutdown_process ; then
+        if ! check_if_already_shutdown_process ; then # Re-check if the system is still running
             if [[ -n "$( cat "$logs_error" | grep -v "(vmwgfx)" )" ]] ; then
-                el_warning "FAIL with is_failed '$is_failed' code, maybe no privileges for el_sudo, implement a gksu feature instead? (attempting $action):\nlog errosr: $(cat "$logs_error" | sort -u )\nsystemctl status ${action}: $( systemctl status ${action%.*}.target 2>&1 )\ngroups: $(groups)\nwho: $(who)"
+                el_warning "$( eval_gettext "Action '%s' failed (error code: %s). This may be due to insufficient privileges or a system issue. Please check the logs for more details." "$action" "$is_failed" )\n\n" \
+                           "$( cat "$logs_error" | sort -u )" \
+                           "Systemctl status for ${action%.*}.target: $( systemctl status "${action%.*}.target" 2>&1 )" \
+                           "Groups: $(groups)\nWho: $(who)"
             fi
         fi
 
@@ -646,28 +658,24 @@ do_action(){
             # play audio of system restored
             hour="$(date +%k)"
             if ! ((NOVOICE)) && ! ((SILENT)) && \
-                [[ "${hour}" -lt "21" ]] && [[ "$hour" -gt "8" ]] ; then
+                [[ "${hour}" -lt "21" ]] && [[ "$hour" -gt "8" ]] ; then # Play sound only during day hours
 
                 soundfile="/usr/share/sounds/elive/system-restored.mp3"
 
                 if [[ -x "$(which "$( basename "$mplayer" | awk '{print $1}' )" )" ]] ; then
                     ( precache "$soundfile" 2>/dev/null 1>&2 ; timeout 30 $mplayer "$soundfile" & )
                 else
-                    el_speak_text "welcome back to ailive"
+                    el_speak_text "$( eval_gettext "Welcome back to Elive" )"
                 fi
             fi
 
-            # hibernation seems to require an e16 restart, at least in vbox:
-            #if [[ "$action" = "hibernate" ]] && [[ -n "$EROOT" ]] ; then
-                #eesh restart
-            #fi
             if [[ "$action" = "hibernate" ]] && el_check_sudo_automated ; then
-                # reload swap if possible, to have the desktop resonsive
+                # Reload swap to improve desktop responsiveness after hibernation
                 sleep 5 ; sync
-                el_info "Freeing SWAP..."
+                el_info "$( eval_gettext "Re-enabling swap for optimal performance..." )"
                 el_sudo swapoff -a 1>/dev/null 2>&1
                 el_sudo swapon -a 1>/dev/null 2>&1
-                el_info "SWAP re-enabled"
+                el_info "$( eval_gettext "SWAP has been re-enabled." )"
             fi
             ;;
     esac
@@ -814,7 +822,7 @@ apt_dpkg_wait(){
                 3 ) j="/" ;;
             esac
             tput rc
-            echo -en "\r[$j] Waiting for other software managers to finish..."
+            echo -en "\r[$j] Waiting for package managers to finish..."
             is_waiting=1
 
             LC_ALL=C  sleep 0.5
