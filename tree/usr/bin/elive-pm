@@ -170,6 +170,7 @@ check_and_inform_when_processes_running(){
     # kill possible useless ones {{{
     for i in tumblerd mpg123 mplayer smplayer vlc rage_thumb mpv mplayer mplayer2 smplayer vlc rage
     do
+        el_debug "killing $i"
         killall -q "$i"     1>/dev/null 2>&1
         killall -q -9 "$i"  1>/dev/null 2>&1
     done
@@ -499,10 +500,10 @@ do_action(){
         mem_swap_free="$( echo "${mem_swap_free} - (( ${mem_swap_free} / 100 ) * 10 )" | LC_ALL=C bc -l | sed -e 's|\..*$||' )" # reduce the free space number to its 90%
 
         if [[ "$mem_ram_used" -ge "${mem_swap_free}" ]] ; then
-            el_info "Required SWAP free space is not enough (RAM used '${mem_ram_used}', Swap free space '${mem_swap_free}'). Going to fre esome memory..."
+            el_info "Required SWAP free space is not enough (RAM used '${mem_ram_used}', Swap free space '${mem_swap_free}'). Going to free some memory..."
             for i in chrome chromium google-chrome firefox firefox-esr palemoon tumblerd opera
             do
-                el_debug "killing $i"
+                el_debug "killing $i to free memory"
                 killall "$i"     1>/dev/null 2>&1
                 killall -9 "$i"  1>/dev/null 2>&1
             done
