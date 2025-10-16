@@ -215,14 +215,19 @@ check_and_inform_when_processes_running(){
                 # Show GUI message repeatedly until process finishes
                 if [[ -n "$DISPLAY" ]] ; then
                     if ps axk comm o comm,args | grep -Eqs "^${watcher}.*${watcher}\s*$" ; then
-                        ( guitool nobuttons "${message_waitingfor} $watcher" ) &
-                        local subshell_pid=$!
+                        local subshell_pid
                         # while pidof -zcxq "$watcher" ; do
                         while ps axk comm o comm,args | grep -Eqs "^${watcher}.*${watcher}\s*$" ; do
+                            if [[ -z "$subshell_pid" ]] || ! ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
+                                ( guitool nobuttons "${message_waitingfor} $watcher" ) &
+                                subshell_pid=$!
+                            fi
                             sleep 2
                         done
-                        pkill -P "$subshell_pid" 2>/dev/null
-                        wait "$subshell_pid" 2>/dev/null
+                        if ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
+                            pkill -P "$subshell_pid" 2>/dev/null
+                            wait "$subshell_pid" 2>/dev/null
+                        fi
                     fi
                 else
                     # Fallback for non-GUI environments
@@ -241,13 +246,18 @@ check_and_inform_when_processes_running(){
             # Show GUI message repeatedly until process finishes
             if [[ -n "$DISPLAY" ]] ; then
                 if ps ux | grep -v grep | grep -v "$$" | grep -qsE "/(user-manager|deliver)/hooks.d/" ; then
-                    ( guitool nobuttons "${message_waitingfor} Desktop Setup" ) &
-                    local subshell_pid=$!
+                    local subshell_pid
                     while ps ux | grep -v grep | grep -v "$$" | grep -qsE "/(user-manager|deliver)/hooks.d/" ; do
+                        if [[ -z "$subshell_pid" ]] || ! ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
+                            ( guitool nobuttons "${message_waitingfor} Desktop Setup" ) &
+                            subshell_pid=$!
+                        fi
                         sleep 2
                     done
-                    pkill -P "$subshell_pid" 2>/dev/null
-                    wait "$subshell_pid" 2>/dev/null
+                    if ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
+                        pkill -P "$subshell_pid" 2>/dev/null
+                        wait "$subshell_pid" 2>/dev/null
+                    fi
                 fi
             else
                 # Fallback for non-GUI environments
@@ -431,11 +441,19 @@ do_action(){
 
     # check if fstrim is running, so we need to wait
     if pidof -zxq '/usr/sbin/fstrim' ; then
-        guitool nobuttons "$( eval_gettext "IMPORTANT: FSTRIM is running. Please wait until it finishes before shutting down. Do not close the computer, as you might lose data. Don't worry, Elive will automatically shut down when the process is complete, so you can leave it like this." )" &
-
+        local subshell_pid
         while pidof -zxq '/usr/sbin/fstrim' ; do
+            if [[ -z "$subshell_pid" ]] || ! ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
+                ( guitool nobuttons "$( eval_gettext "IMPORTANT: FSTRIM is running. Please wait until it finishes before shutting down. Do not close the computer, as you might lose data. Don't worry, Elive will automatically shut down when the process is complete, so you can leave it like this." )" ) &
+                subshell_pid=$!
+            fi
             sleep 5
         done
+
+        if ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
+            pkill -P "$subshell_pid" 2>/dev/null
+            wait "$subshell_pid" 2>/dev/null
+        fi
 
         # flush
         sleep 1 ; sync ; sleep 4
@@ -444,11 +462,19 @@ do_action(){
     # check if btrfs is running, so we need to wait
     if pidof -zxq '/usr/bin/btrfs' ; then
         if ! ps aux | grep -v grep | grep -qs "btrfs-scrub" ; then
-            guitool nobuttons "$( eval_gettext "IMPORTANT: There are BTRFS tasks currently running. It is very important to wait until they finish before shutting down the computer, as you can lose your data. But don't worry, Elive will automatically shut down your computer once these processes is complete, so you can leave it like this." )" &
-
+            local subshell_pid
             while pidof -zxq '/usr/bin/btrfs' ; do
+                if [[ -z "$subshell_pid" ]] || ! ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
+                    ( guitool nobuttons "$( eval_gettext "IMPORTANT: There are BTRFS tasks currently running. It is very important to wait until they finish before shutting down the computer, as you can lose your data. But don't worry, Elive will automatically shut down your computer once these processes is complete, so you can leave it like this." )" ) &
+                    subshell_pid=$!
+                fi
                 sleep 5
             done
+
+            if ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
+                pkill -P "$subshell_pid" 2>/dev/null
+                wait "$subshell_pid" 2>/dev/null
+            fi
 
             # flush
             sleep 1 ; sync ; sleep 4
@@ -759,13 +785,18 @@ apt_dpkg_wait(){
 
     if [[ -n "$DISPLAY" ]] ; then
         if fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock >/dev/null 2>&1 ; then
-            ( guitool nobuttons "$message" ) &
-            local subshell_pid=$!
+            local subshell_pid
             while fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock >/dev/null 2>&1 ; do
+                if [[ -z "$subshell_pid" ]] || ! ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
+                    ( guitool nobuttons "$message" ) &
+                    subshell_pid=$!
+                fi
                 sleep 2 # Small delay to prevent hammering the GUI
             done
-            pkill -P "$subshell_pid" 2>/dev/null
-            wait "$subshell_pid" 2>/dev/null
+            if ps -p "$subshell_pid" 1>/dev/null 2>&1 ; then
+                pkill -P "$subshell_pid" 2>/dev/null
+                wait "$subshell_pid" 2>/dev/null
+            fi
         fi
         # Perform the final check and recursive call as in the non-GUI path
         LC_ALL=C  sleep 3
