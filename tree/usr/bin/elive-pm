@@ -696,14 +696,6 @@ main(){
     logs_error="$( mktemp )"
     el_add_on_exit  rm -f "$logs_error"
 
-    if pidof -zcq systemd ; then
-        is_systemd=1
-    else
-        if ! [[ -e "/var/lib/dpkg/info/sysvinit-core.list" ]] ; then
-            is_systemd=1
-        fi
-    fi
-
     if grep -qs "boot=live" /proc/cmdline ; then
         is_live=1
     fi
