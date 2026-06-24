@@ -403,12 +403,12 @@ do_fallback(){
             #is_failed=4
             ;;
         shutdown|poweroff|halt)
-            if ! /sbin/poweroff 2>/dev/null ; then
-                el_sudo /sbin/poweroff
+            if ! /sbin/poweroff --poweroff  2>/dev/null ; then
+                el_sudo /sbin/poweroff --poweroff
                 return $?
             fi
             # we still here? report
-            #/sbin/poweroff 2>>"$logs_error"
+            #/sbin/poweroff --poweroff  2>>"$logs_error"
             #is_failed=5
             ;;
         suspend-then-hibernate)
