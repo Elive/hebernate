@@ -60,6 +60,13 @@ echo "$$" > "$lockfile"
 
 # end lock system }}}
 
+is_s2idle(){
+    local state
+    state=$(cat /sys/power/mem_sleep 2>/dev/null)
+    [[ "$state" =~ \[s2idle\] ]] && return 0
+    return 1
+}
+
 usage(){
     # Usage
     if [[ -z "${1}" ]] ; then
@@ -560,6 +567,17 @@ do_action(){
     fi
 
     # - checks }}}
+
+    # Reduce power consumption in s2idle mode before suspend/hybrid
+    if echo "$action" | grep -Eqs '^(suspend|suspend-then-hibernate)$' ; then
+        if is_s2idle ; then
+            for brw in firefox firefox-esr google-chrome google-chrome-stable chromium chromium-browser opera ; do
+                killall -STOP -q "$brw" 2>/dev/null
+            done
+            el_sudo powertop --auto-tune 2>/dev/null
+        fi
+    fi
+
     # run
     sync
 
@@ -635,6 +653,14 @@ do_action(){
     sleep 5
     sync
 
+    # After wake from s2idle, resume browsers
+    if echo "$action" | grep -Eqs '^(suspend|suspend-then-hibernate)$' ; then
+        if is_s2idle ; then
+            for brw in firefox firefox-esr google-chrome google-chrome-stable chromium chromium-browser opera ; do
+                killall -CONT -q "$brw" 2>/dev/null
+            done
+        fi
+    fi
 
     case "$action" in
         suspend|hibernate)
