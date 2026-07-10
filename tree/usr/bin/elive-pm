@@ -571,7 +571,7 @@ do_action(){
     # Reduce power consumption in s2idle mode before suspend/hybrid
     if echo "$action" | grep -Eqs '^(suspend|suspend-then-hibernate)$' ; then
         if is_s2idle ; then
-            for brw in firefox firefox-esr google-chrome google-chrome-stable chromium chromium-browser opera cairo-dock ulauncher conky htop ; do
+            for brw in firefox firefox-esr google-chrome google-chrome-stable chromium chromium-browser opera elsurf cairo-dock ulauncher conky htop ; do
                 killall -STOP -q "$brw" 2>/dev/null
             done
             el_sudo powertop --auto-tune 2>/dev/null
@@ -656,7 +656,7 @@ do_action(){
     # After wake from s2idle, resume browsers
     if echo "$action" | grep -Eqs '^(suspend|suspend-then-hibernate)$' ; then
         if is_s2idle ; then
-            for brw in firefox firefox-esr google-chrome google-chrome-stable chromium chromium-browser opera cairo-dock ulauncher conky htop ; do
+            for brw in firefox firefox-esr google-chrome google-chrome-stable chromium chromium-browser opera elsurf cairo-dock ulauncher conky htop ; do
                 killall -CONT -q "$brw" 2>/dev/null
             done
         fi
