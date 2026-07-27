@@ -308,6 +308,10 @@ check_and_inform_when_processes_running(){
                     fi
                 done
             fi
+        else
+            el_debug "No active swap partition found via swapon -s."
+            el_info "Setting up swap file via hibernate-from-file..."
+            el_sudo hibernate-from-file --setup-only --yes
         fi
     fi
 }
