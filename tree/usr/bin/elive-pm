@@ -75,13 +75,13 @@ hibernate_from_file_is_ready(){
     [[ -f "$swap_file" ]] || return 1
 
     # Check if swap is already active
-    if swapon -s | grep -qF "$swap_file" 2>/dev/null; then
+    if /sbin/swapon -s | grep -qF "$swap_file" 2>/dev/null; then
         return 0
     fi
 
     # Swap file exists but not active - check fstab and try to activate
     if grep -qF "$swap_file" /etc/fstab 2>/dev/null; then
-        swapon "$swap_file" 2>/dev/null && return 0
+        /sbin/swapon "$swap_file" 2>/dev/null && return 0
     fi
 
     return 1
