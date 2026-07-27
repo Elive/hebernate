@@ -561,10 +561,57 @@ do_action(){
                 sleep 2
             fi
         else
-            el_debug "No active swap partition/swapfile found via swapon -s. Hibernation will likely fail."
-            el_debug "Full swapon output: $(/sbin/swapon -s 2>/dev/null)"
-            el_debug "Checking for swapfile in /etc/fstab..."
-            grep -q swap /etc/fstab 2>/dev/null && el_debug "Swap entry found in /etc/fstab" || el_debug "No swap entry in /etc/fstab"
+            el_debug "No active swap partition/swapfile found via swapon -s."
+            SWAP_FILE=""
+            # Look for an existing swap file from swapon output (skip /dev/ partitions)
+            while IFS= read -r swap_path; do
+                [[ -z "$swap_path" ]] && continue
+                [[ "$swap_path" == /dev/* ]] && continue
+                if [[ -f "$swap_path" ]] ; then
+                    SWAP_FILE="$swap_path"
+                    break
+                fi
+            done < <(swapon -s 2>/dev/null | awk 'NR>1{print $1}')
+            # Check /etc/fstab if no swap file found yet
+            if [[ -z "$SWAP_FILE" ]] && [[ -r /etc/fstab ]] ; then
+                while IFS= read -r line; do
+                    [[ "$line" =~ ^# ]] && continue
+                    [[ -z "$line" ]] && continue
+                    swap_path="$(echo "$line" | awk '{print $1}')"
+                    [[ "$swap_path" == /dev/* ]] && continue
+                    if [[ -f "$swap_path" ]] ; then
+                        SWAP_FILE="$swap_path"
+                        break
+                    fi
+                done < /etc/fstab
+            fi
+            if [[ -n "$SWAP_FILE" ]] ; then
+                el_info "Found existing swap file ${SWAP_FILE}, activating..."
+                swapon "$SWAP_FILE" 2>/dev/null
+            else
+                SWAP_SIZE_MB="$( LC_ALL=C free -m | grep -i "^Mem:" | awk '{print $2}' )"
+                SWAP_SIZE_MB=$(( SWAP_SIZE_MB + SWAP_SIZE_MB / 4 ))
+                for candidate in /swapfile /swapfile1 /swapfile2 /swapfile.swp /swapfile1.swp /swapfile2.swp ; do
+                    if [[ ! -e "$candidate" ]] ; then
+                        SWAP_FILE="$candidate"
+                        break
+                    fi
+                done
+                if [[ -n "$SWAP_FILE" ]] ; then
+                    el_info "No swap found. Creating swap file ${SWAP_FILE} (${SWAP_SIZE_MB} MB) for hibernation..."
+                    truncate -s "${SWAP_SIZE_MB}M" "$SWAP_FILE"
+                    chmod 0600 "$SWAP_FILE"
+                    mkswap "$SWAP_FILE" >/dev/null 2>&1
+                    swapon "$SWAP_FILE" 2>/dev/null
+                else
+                    el_warning "Could not find an available swap file name. Hibernation will likely fail."
+                fi
+            fi
+            if [[ -n "$SWAP_FILE" ]] && /sbin/swapon -s | grep -q "$SWAP_FILE" ; then
+                el_info "Swap file activated successfully."
+            else
+                el_warning "Failed to create/activate swap file. Hibernation will likely fail."
+            fi
         fi
     fi
 
