@@ -592,8 +592,8 @@ do_action(){
             fi
         elif ! hibernate_from_file_is_ready; then
             el_info "No swap found. Setting up swap file via hibernate-from-file..."
+            guitool info "Swap file created. Please wait 5 minutes for the swap space to be fully set up before hibernating."
             el_sudo hibernate-from-file --setup-only --yes
-            el_info "Swap file created. Please wait 5 minutes for the swap space to be fully set up before hibernating."
         fi
     fi
 
