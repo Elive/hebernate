@@ -62,6 +62,8 @@ RESUME_DEVICE=""    # block device for resume=
 RESUME_UUID=""      # UUID for resume=UUID=...
 FULL_RESUME_PARAMS=""  # e.g. "resume=UUID=... resume_offset=..."
 BOOT_CFG_CHANGED=false
+INITRAMFS_CHANGED=false
+GRUB_CHANGED=false
 
 # ============================================================================
 #  TERMINAL COLOURS (disabled when stdout is not a tty)
@@ -639,6 +641,12 @@ configure_initramfs() {
     fi
     local content="RESUME=${value}"
 
+    # Skip if the file already has the correct content
+    if [[ -f "$conf" ]] && [[ "$(cat "$conf")" == "$content" ]]; then
+        log_ok "initramfs resume config unchanged"
+        return 0
+    fi
+
     # Backup
     [[ -f "$conf" ]] && run_cmd cp -a "$conf" "${conf}.bak.$(file_hash "$conf" 2>/dev/null || date +%s)"
 
@@ -646,6 +654,7 @@ configure_initramfs() {
         echo "$content" > "$conf"
         log_verbose "Wrote: ${content}  ->  ${conf}"
     fi
+    INITRAMFS_CHANGED=true
     log_ok "initramfs resume config written"
 }
 
@@ -676,6 +685,12 @@ configure_grub() {
     new_val="${new_val:+${new_val} }${FULL_RESUME_PARAMS}"
     log_ok "New GRUB cmdline: ${new_val}"
 
+    # Skip if the cmdline is unchanged
+    if [[ "$old_val" == "$new_val" ]]; then
+        log_ok "GRUB config unchanged"
+        return 0
+    fi
+
     if ! $OPT_DRY_RUN; then
         local escaped_old escaped_new
         escaped_old=$(printf '%s\n' "$old_val" | sed 's/[&/\]/\\&/g')
@@ -688,6 +703,7 @@ configure_grub() {
             return 1
         fi
     fi
+    GRUB_CHANGED=true
     log_ok "GRUB config updated"
 }
 
@@ -698,23 +714,33 @@ rebuild_boot() {
         return 0
     fi
 
-    log_step "Rebuilding initramfs ..."
-    if ! $OPT_DRY_RUN; then
-        update-initramfs -u -k all 2>&1 | while IFS= read -r l; do log_debug "  $l"; done
+    if $INITRAMFS_CHANGED; then
+        log_step "Rebuilding initramfs ..."
+        if ! $OPT_DRY_RUN; then
+            update-initramfs -u -k all 2>&1 | while IFS= read -r l; do log_debug "  $l"; done
+        else
+            log_info "[dry-run] update-initramfs -u -k all"
+        fi
+        log_ok "initramfs rebuilt"
     else
-        log_info "[dry-run] update-initramfs -u -k all"
+        log_step "initramfs unchanged - skipping rebuild"
     fi
-    log_ok "initramfs rebuilt"
 
-    log_step "Rebuilding GRUB configuration ..."
-    if ! $OPT_DRY_RUN; then
-        update-grub 2>&1 | while IFS= read -r l; do log_debug "  $l"; done
+    if $GRUB_CHANGED; then
+        log_step "Rebuilding GRUB configuration ..."
+        if ! $OPT_DRY_RUN; then
+            update-grub 2>&1 | while IFS= read -r l; do log_debug "  $l"; done
+        else
+            log_info "[dry-run] update-grub"
+        fi
+        log_ok "GRUB configuration rebuilt"
     else
-        log_info "[dry-run] update-grub"
+        log_step "GRUB config unchanged - skipping rebuild"
     fi
-    log_ok "GRUB configuration rebuilt"
 
-    BOOT_CFG_CHANGED=true
+    if $INITRAMFS_CHANGED || $GRUB_CHANGED; then
+        BOOT_CFG_CHANGED=true
+    fi
 }
 
 # ============================================================================
