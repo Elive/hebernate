@@ -425,7 +425,7 @@ do_fallback(){
             fi
             ;;
         hibernate|stop)
-            if swapon -s | grep -q "^/dev/" ; then
+            if /sbin/swapon -s | grep -q "^/dev/" ; then
                 if ! /usr/sbin/pm-hibernate 2>/dev/null ; then
                     el_sudo /usr/sbin/pm-hibernate
                     return $?
@@ -539,11 +539,15 @@ do_action(){
 
     # check for enough swap space needed:
     if echo "$action" | grep -Fqs "hibernate" ; then
-        if swapon -s | grep -q "^/dev/" ; then
+        el_debug "Checking swap space for hibernation..."
+        el_debug "Active swap devices: $(/sbin/swapon -s 2>/dev/null)"
+        if /sbin/swapon -s | grep -q "^/dev/" ; then
             #mem_ram_used="$( LC_ALL=C free -m -t | grep "^Mem:" | awk '{print $3}' )"
             mem_ram_used="$( LC_ALL=C free -m -t | grep -i "^Total:" | awk '{print $3}' )"
             mem_swap_free="$( LC_ALL=C free -m -t | grep -i "^Swap:" | awk '{print $4}' )"
             mem_swap_free="$( echo "${mem_swap_free} - (( ${mem_swap_free} / 100 ) * 10 )" | LC_ALL=C bc -l | sed -e 's|\..*$||' )" # reduce the free space number to 90%
+
+            el_debug "RAM used: ${mem_ram_used}MB, Swap free (90%): ${mem_swap_free}MB"
 
             if [[ "$mem_ram_used" -ge "${mem_swap_free}" ]] ; then
                 el_info "$( eval_gettext "Not enough SWAP space for hibernation (RAM used: ${mem_ram_used}MB, Swap free: ${mem_swap_free}MB). Attempting to free memory..." )"
@@ -556,6 +560,11 @@ do_action(){
                 sync
                 sleep 2
             fi
+        else
+            el_debug "No active swap partition/swapfile found via swapon -s. Hibernation will likely fail."
+            el_debug "Full swapon output: $(/sbin/swapon -s 2>/dev/null)"
+            el_debug "Checking for swapfile in /etc/fstab..."
+            grep -q swap /etc/fstab 2>/dev/null && el_debug "Swap entry found in /etc/fstab" || el_debug "No swap entry in /etc/fstab"
         fi
     fi
 

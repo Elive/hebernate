@@ -1014,6 +1014,27 @@ main() {
         fi
 
         activate_swap "$SWAP_FILE_PATH" || exit 1
+
+        # Ask about adding swapfile to /etc/fstab for persistence across reboots
+        if grep -qF "$SWAP_FILE_PATH" /etc/fstab 2>/dev/null ; then
+            log_ok "Swapfile $SWAP_FILE_PATH already in /etc/fstab"
+        else
+            if $OPT_YES ; then
+                # Non-interactive mode: auto-add to fstab
+                printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$SWAP_FILE_PATH" "none" "swap" "sw" "0" "0" | tee -a /etc/fstab >/dev/null
+                log_ok "Auto-added ${SWAP_FILE_PATH} to /etc/fstab"
+            else
+                # Interactive mode: ask the user
+                log_info "Swapfile $SWAP_FILE_PATH created successfully."
+                read -rp "Add swapfile to /etc/fstab so it persists across reboots? [y/N] " ans
+                if [[ "$ans" =~ ^[Yy] ]] ; then
+                    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$SWAP_FILE_PATH" "none" "swap" "sw" "0" "0" | tee -a /etc/fstab >/dev/null
+                    log_ok "Added ${SWAP_FILE_PATH} to /etc/fstab"
+                else
+                    log_info "Swapfile not added to /etc/fstab."
+                fi
+            fi
+        fi
     else
         log_ok "Using existing swap - no swap file needed."
     fi
