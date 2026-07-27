@@ -116,31 +116,29 @@ case "$1" in
         fi
 
         if ! ((is_hebernate_failed)) ; then
-            if ! swapon -s | grep -q "^/dev/" ; then
-                el_speak_text -f "you don't have a swap partition enabled, to use hibernation you need one"
-                sleep 7
-                is_hebernate_failed=1
-            fi
-        fi
-
-        if ! ((is_hebernate_failed)) ; then
-            if ! grep -qsE "LINUX_DEFAULT.*resume=" /etc/default/grub ; then
-                el_speak_text -f "we suggest to reinstall to the last version of elive, including a swap partition, to have hibernation working"
-                sleep 12
-                is_hebernate_failed=1
-            fi
+            :
         fi
 
 
         #setvolume mute
         sync
 
-        if ! /usr/sbin/pm-hibernate 2>/tmp/.hebernate-$USER 1>&2 ; then
-            #setvolume unmute
-            #$guitool --error --text="$( cat /tmp/.hebernate-$USER )"
-            el_speak_text -f "sorry, this computer has not hibernation features available"
-            sleep 9
-            is_hebernate_failed=1
+        if ! ((is_hebernate_failed)) ; then
+            if swapon -s | grep -q "^/dev/" ; then
+                if ! /usr/sbin/pm-hibernate 2>/tmp/.hebernate-$USER 1>&2 ; then
+                    #setvolume unmute
+                    #$guitool --error --text="$( cat /tmp/.hebernate-$USER )"
+                    el_speak_text -f "sorry, this computer has not hibernation features available"
+                    sleep 9
+                    is_hebernate_failed=1
+                fi
+            else
+                if ! /usr/sbin/hibernate-from-file -y 2>/tmp/.hebernate-$USER 1>&2 ; then
+                    el_speak_text -f "sorry, this computer has not hibernation features available"
+                    sleep 9
+                    is_hebernate_failed=1
+                fi
+            fi
         fi
 
 

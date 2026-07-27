@@ -1,0 +1,1070 @@
+#!/usr/bin/env bash
+# ============================================================================
+#  smart-hibernate - Dynamic Hibernation Setup & Execution
+# ============================================================================
+#  Designed for Debian 13 Trixie / Elive Linux
+#
+#  Handles: ext4, btrfs, xfs root filesystems
+#           LUKS encrypted partitions (including LVM-on-LUKS)
+#           Automatic swap-file creation when no/insufficient swap exists
+#           Kernel, initramfs, and GRUB configuration
+#
+#  Usage:  sudo ./smart-hibernate.sh [OPTIONS]
+#  Help:   sudo ./smart-hibernate.sh --help
+#
+#  License: GPL-3.0
+# ============================================================================
+
+set -o pipefail
+
+# ============================================================================
+#  CONSTANTS
+# ============================================================================
+readonly PROG="smart-hibernate"
+readonly VERSION="2.0.0"
+readonly DEFAULT_SWAP_FILE="/swapfile.swp"
+readonly STATE_DIR="/var/lib/${PROG}"
+readonly STATE_FILE="${STATE_DIR}/state.conf"
+readonly SWAP_MARGIN_PCT=6          # extra % above RAM for the swap file
+
+# ============================================================================
+#  GLOBAL STATE - populated at runtime
+# ============================================================================
+# CLI flags
+OPT_DRY_RUN=false;  OPT_VERBOSE=false;  OPT_DEBUG=false
+OPT_FORCE=false;    OPT_SETUP_ONLY=false; OPT_HIBERNATE_ONLY=false
+OPT_NO_UPDATE_BOOT=false; OPT_CREATE_SERVICE=false; OPT_YES=false
+OPT_STATUS=false;   OPT_REVERT=false
+OPT_SWAP_FILE="";   OPT_SWAP_SIZE="";    OPT_METHOD="auto"
+
+# Detected environment
+RAM_TOTAL_KB=0;     RAM_TOTAL_MB=0
+ROOT_SOURCE=""      # e.g. /dev/mapper/cryptroot
+ROOT_FSTYPE=""      # ext4 / btrfs / xfs ...
+ROOT_MOUNT_OPTS=""
+IS_LUKS=false
+EXISTING_SWAP_KB=0; SWAP_SUFFICIENT=false
+
+# Resolved config
+USE_SWAP_FILE=false
+SWAP_FILE_PATH=""
+SWAP_FILE_SIZE_MB=0
+SWAP_OFFSET=0
+RESUME_DEVICE=""    # block device for resume=
+RESUME_UUID=""      # UUID for resume=UUID=...
+FULL_RESUME_PARAMS=""  # e.g. "resume=UUID=... resume_offset=..."
+BOOT_CFG_CHANGED=false
+
+# ============================================================================
+#  TERMINAL COLOURS (disabled when stdout is not a tty)
+# ============================================================================
+if [[ -t 1 ]]; then
+    C_R='\033[0;31m'; C_G='\033[0;32m'; C_Y='\033[0;33m'
+    C_B='\033[0;34m'; C_M='\033[0;35m'; C_C='\033[0;36m'
+    C_BD='\033[1m';   C_NC='\033[0m'
+else
+    C_R=''; C_G=''; C_Y=''; C_B=''; C_M=''; C_C=''; C_BD=''; C_NC=''
+fi
+
+# ============================================================================
+#  LOGGING
+# ============================================================================
+log_info()    { printf "${C_G}[INFO]${C_NC}  %s\n" "$*"; }
+log_warn()    { printf "${C_Y}[WARN]${C_NC}  %s\n" "$*" >&2; }
+log_error()   { printf "${C_R}[ERROR]${C_NC} %s\n" "$*" >&2; }
+log_ok()      { printf "${C_G}[  OK]${C_NC}  %s\n" "$*"; }
+log_step()    { printf "\n${C_C}${C_BD}>>> %s${C_NC}\n" "$*"; }
+log_verbose() { $OPT_VERBOSE && printf "${C_B}[VERB]${C_NC}  %s\n" "$*" || true; }
+log_debug()   { $OPT_DEBUG   && printf "${C_M}[DBUG]${C_NC}  %s\n" "$*" || true; }
+
+# Run a command, respecting --dry-run.  Prints the command in dry-run mode.
+run_cmd() {
+    if $OPT_DRY_RUN; then
+        log_info "[dry-run] $*"
+        return 0
+    fi
+    log_debug "exec: $*"
+    "$@"
+}
+
+# ============================================================================
+#  HELP / VERSION
+# ============================================================================
+show_version() { echo "${PROG} ${VERSION}"; }
+
+show_help() {
+    cat << EOF
+${C_BD}${PROG}${C_NC} ${VERSION} - Dynamic hibernation setup & execution
+
+${C_BD}USAGE${C_NC}
+    sudo ./${PROG##*/} [OPTIONS]
+
+${C_BD}OPTIONS${C_NC}
+    -h, --help              Show this help and exit
+    -V, --version           Show version and exit
+    -d, --dry-run           Show what would be done without changes
+    -v, --verbose           Verbose output
+    -D, --debug             Debug output (very detailed; implies --verbose)
+    -y, --yes               Skip confirmation prompts
+    -f, --force             Force swap-file recreation even if one exists
+    -s, --setup-only        Configure everything but do NOT hibernate
+    -H, --hibernate-only    Hibernate immediately (skip boot reconfiguration)
+    -n, --no-update-boot    Do not run update-initramfs / update-grub
+    -c, --create-service    Install a systemd unit to clean up the swap file
+                            after each resume
+    -S, --status            Print current hibernation readiness and exit
+    -R, --revert            Undo changes made by this script and exit
+    -m, --method M          Hibernation method: auto | systemctl | kernel
+                            (default: auto - tries systemctl, falls back to
+                            the kernel power interface)
+        --swap-file PATH    Custom swap file path (default: ${DEFAULT_SWAP_FILE})
+        --swap-size SIZE    Swap size in MB (default: RAM + ${SWAP_MARGIN_PCT}%)
+
+${C_BD}EXAMPLES${C_NC}
+    # One-shot: set up swap + hibernate now
+    sudo ./${PROG##*/}
+
+    # First-time setup only (reboot afterwards to activate new kernel params)
+    sudo ./${PROG##*/} --setup-only
+
+    # Just hibernate (assumes setup was already done)
+    sudo ./${PROG##*/} --hibernate-only
+
+    # Show what would happen without touching anything
+    sudo ./${PROG##*/} --dry-run --verbose
+
+    # Use a 12 GB swap file at a custom path
+    sudo ./${PROG##*/} --swap-file /var/swap --swap-size 12288
+
+EOF
+}
+
+# ============================================================================
+#  CORE UTILITIES
+# ============================================================================
+require_root() {
+    if [[ $EUID -ne 0 ]]; then
+        log_error "This script must be run as root (or via sudo)."
+        exit 1
+    fi
+}
+
+# Human-readable byte size
+fmt_bytes() {
+    local b=$1
+    if   (( b >= 1073741824 )); then printf "%d GB" $((b / 1073741824))
+    elif (( b >= 1048576 ));    then printf "%d MB" $((b / 1048576))
+    else                             printf "%d KB" $((b / 1024))
+    fi
+}
+
+confirm_or_exit() {
+    $OPT_YES && return 0
+    local msg="${1:-Continue?}"
+    printf "${C_Y}[?] %s [y/N]: ${C_NC}" "$msg"
+    read -r ans
+    [[ "$ans" =~ ^[Yy] ]] || { log_info "Aborted."; exit 0; }
+}
+
+# Simple hash of a file (for backup naming)
+file_hash() { md5sum "$1" 2>/dev/null | cut -c1-8; }
+
+# ============================================================================
+#  PHASE 1 - ENVIRONMENT DETECTION
+# ============================================================================
+
+detect_ram() {
+    RAM_TOTAL_KB=$(awk '/^MemTotal:/{print $2}' /proc/meminfo)
+    RAM_TOTAL_MB=$((RAM_TOTAL_KB / 1024))
+    log_ok "RAM total: ${RAM_TOTAL_MB} MB ($(fmt_bytes $((RAM_TOTAL_KB * 1024))))"
+    log_debug "MemFree :$(awk '/^MemFree:/{print $2}' /proc/meminfo) kB"
+    log_debug "SwapTotal:$(awk '/^SwapTotal:/{print $2}' /proc/meminfo) kB"
+}
+
+detect_root_fs() {
+    ROOT_SOURCE=$(findmnt -n -o SOURCE /)
+    ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
+    ROOT_MOUNT_OPTS=$(findmnt -n -o OPTIONS /)
+    log_ok "Root device : ${ROOT_SOURCE}"
+    log_ok "Filesystem  : ${ROOT_FSTYPE}"
+    log_debug "Mount opts  : ${ROOT_MOUNT_OPTS}"
+}
+
+detect_luks() {
+    IS_LUKS=false
+    local dev="$ROOT_SOURCE"
+
+    # --- Walk the dm device stack looking for a 'crypt' target ---
+    walk_dm_stack() {
+        local target="$1"
+        [[ "$target" != /dev/mapper/* ]] && return 1
+        local name="${target#/dev/mapper/}"
+        if dmsetup table "$name" 2>/dev/null | grep -q '^0 .* crypt'; then
+            return 0
+        fi
+        # Check dependencies (handles LVM-on-LUKS)
+        local dep
+        for dep in $(dmsetup deps -o devname "$name" 2>/dev/null); do
+            dep="${dep//[()]/}"
+            [[ -z "$dep" ]] && continue
+            if dmsetup table "$dep" 2>/dev/null | grep -q 'crypt'; then
+                return 0
+            fi
+        done
+        return 1
+    }
+
+    if walk_dm_stack "$dev"; then
+        IS_LUKS=true
+    fi
+
+    # Fallback: check blkid on the underlying block device
+    if ! $IS_LUKS; then
+        local backing
+        backing=$(lsblk -nlo PKNAME "$dev" 2>/dev/null | head -1)
+        if [[ -n "$backing" ]] && blkid -p "/dev/$backing" 2>/dev/null | grep -qi "TYPE=\"crypto_LUKS\""; then
+            IS_LUKS=true
+        fi
+    fi
+
+    $IS_LUKS && log_ok "LUKS encryption detected" || log_ok "No LUKS encryption detected"
+}
+
+detect_existing_swap() {
+    EXISTING_SWAP_KB=0
+    local total=0
+
+    # Read active swap devices, skipping zram (RAM-backed, can't persist)
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        local dev type size_kb
+        dev=$(awk '{print $1}' <<< "$line")
+        type=$(awk '{print $2}' <<< "$line")
+        size_kb=$(awk '{print $3}' <<< "$line")
+        [[ "$dev" == /dev/zram* ]] && { log_verbose "Skipping zram swap: $dev"; continue; }
+        total=$((total + size_kb))
+        log_verbose "Active swap : $dev  type=$type  size=$(fmt_bytes $((size_kb*1024)))"
+    done < <(swapon --noheadings --bytes 2>/dev/null | awk '{print $1, $2, $3}')
+
+    EXISTING_SWAP_KB=$total
+    log_ok "Total active swap (excl. zram): $(fmt_bytes $((EXISTING_SWAP_KB * 1024)))"
+}
+
+check_hibernate_kernel_support() {
+    if [[ ! -f /sys/power/state ]]; then
+        log_warn "/sys/power/state missing - kernel may lack hibernation support."
+        return 1
+    fi
+    if ! grep -qw "disk" /sys/power/state; then
+        log_warn "'disk' not in /sys/power/state - hibernation disabled in this kernel."
+        log_warn "Available states: $(cat /sys/power/state)"
+        return 1
+    fi
+    # Check for 'noresume' on the *current* kernel cmdline
+    if grep -qw "noresume" /proc/cmdline; then
+        log_warn "Current kernel was booted with 'noresume' - resume will not work"
+        log_warn "until the parameter is removed from GRUB."
+    fi
+    log_ok "Kernel supports hibernation (disk)"
+    return 0
+}
+
+# ============================================================================
+#  PHASE 2 - DEPENDENCY MANAGEMENT
+# ============================================================================
+
+REQUIRED_CMDS=(swapon mkswap blkid findmnt lsblk filefrag)
+OPTIONAL_CMDS=(fallocate btrfs)
+
+check_dependencies() {
+    local missing=()
+    local cmd
+    for cmd in "${REQUIRED_CMDS[@]}"; do
+        command -v "$cmd" &>/dev/null || missing+=("$cmd")
+    done
+    # Filesystem-specific
+    [[ "$ROOT_FSTYPE" == btrfs ]] && ! command -v btrfs &>/dev/null && missing+=(btrfs)
+    # Boot tools
+    for cmd in update-initramfs update-grub; do
+        command -v "$cmd" &>/dev/null || missing+=("$cmd")
+    done
+
+    if (( ${#missing[@]} > 0 )); then
+        log_error "Missing required tools: ${missing[*]}"
+        log_info  "Try:  apt-get install ${missing[*]}"
+        return 1
+    fi
+    log_ok "All required tools present"
+}
+
+install_missing_packages() {
+    local pkgs=()
+    command -v update-initramfs &>/dev/null || pkgs+=(initramfs-tools)
+    if ! command -v update-grub &>/dev/null; then
+        [[ -d /sys/firmware/efi ]] && pkgs+=(grub-efi-amd64) || pkgs+=(grub-pc)
+    fi
+    [[ "$ROOT_FSTYPE" == btrfs ]] && ! command -v btrfs &>/dev/null && pkgs+=(btrfs-progs)
+
+    if (( ${#pkgs[@]} > 0 )); then
+        log_step "Installing missing packages: ${pkgs[*]}"
+        run_cmd apt-get update -qq
+        run_cmd apt-get install -y -qq "${pkgs[@]}"
+    fi
+}
+
+# ============================================================================
+#  PHASE 3 - SWAP ANALYSIS & CREATION
+# ============================================================================
+
+analyse_swap_needs() {
+    local required_kb=$((RAM_TOTAL_KB + RAM_TOTAL_KB * SWAP_MARGIN_PCT / 100))
+    log_verbose "Required swap for hibernation: $(fmt_bytes $((required_kb * 1024))) (RAM + ${SWAP_MARGIN_PCT}%)"
+
+    if (( EXISTING_SWAP_KB >= required_kb )); then
+        SWAP_SUFFICIENT=true
+        log_ok "Existing swap is sufficient for hibernation"
+    else
+        SWAP_SUFFICIENT=false
+        log_warn "Existing swap $(fmt_bytes $((EXISTING_SWAP_KB*1024))) < required $(fmt_bytes $((required_kb*1024)))"
+    fi
+}
+
+# Decide where the swap file goes and how large it should be
+prepare_swap_file() {
+    SWAP_FILE_PATH="${OPT_SWAP_FILE:-$DEFAULT_SWAP_FILE}"
+
+    if [[ -n "$OPT_SWAP_SIZE" ]]; then
+        SWAP_FILE_SIZE_MB=$OPT_SWAP_SIZE
+    else
+        local ram_plus_margin=$((RAM_TOTAL_MB + RAM_TOTAL_MB * SWAP_MARGIN_PCT / 100))
+        # Round up to next 100 MB
+        SWAP_FILE_SIZE_MB=$(( (ram_plus_margin + 99) / 100 * 100 ))
+    fi
+
+    log_ok "Swap file path : ${SWAP_FILE_PATH}"
+    log_ok "Swap file size : ${SWAP_FILE_SIZE_MB} MB"
+
+    # --- Check if a usable swap file already exists ---
+    if [[ -f "$SWAP_FILE_PATH" ]] && ! $OPT_FORCE; then
+        local existing_bytes
+        existing_bytes=$(stat -c %s "$SWAP_FILE_PATH" 2>/dev/null || echo 0)
+        local required_bytes=$((SWAP_FILE_SIZE_MB * 1048576))
+        if (( existing_bytes >= required_bytes )); then
+            log_ok "Existing swap file is large enough ($(fmt_bytes $existing_bytes)) - reusing."
+            return 0        # <- skip creation
+        else
+            log_warn "Existing swap file is too small ($(fmt_bytes $existing_bytes)) - will recreate."
+        fi
+    fi
+
+    # --- Verify free disk space ---
+    local mount_target avail_kb
+    mount_target=$(df --output=target "$(dirname "$SWAP_FILE_PATH")" 2>/dev/null | tail -1)
+    avail_kb=$(df --output=avail "$mount_target" 2>/dev/null | tail -1 | tr -d ' ')
+    local avail_mb=$((avail_kb / 1024))
+
+    if (( avail_mb < SWAP_FILE_SIZE_MB )); then
+        log_error "Not enough disk space on ${mount_target}: need ${SWAP_FILE_SIZE_MB} MB, have ${avail_mb} MB"
+        return 1
+    fi
+    log_ok "Disk space OK  : ${avail_mb} MB available on ${mount_target}"
+}
+
+# --- ext4 / xfs swap-file creation (sparse file, blocks allocated on use) ---
+create_swap_ext4_xfs() {
+    log_step "Creating ${SWAP_FILE_SIZE_MB} MB swap file on ${ROOT_FSTYPE} ..."
+
+    # Remove old file if needed
+    if [[ -f "$SWAP_FILE_PATH" ]]; then
+        run_cmd swapoff "$SWAP_FILE_PATH" 2>/dev/null || true
+        run_cmd rm -f "$SWAP_FILE_PATH"
+    fi
+
+    log_verbose "Creating sparse file (blocks allocated on use) ..."
+    run_cmd truncate -s "${SWAP_FILE_SIZE_MB}M" "$SWAP_FILE_PATH"
+
+    run_cmd chmod 0600 "$SWAP_FILE_PATH"
+    run_cmd mkswap "$SWAP_FILE_PATH"
+    log_ok "Swap file created on ${ROOT_FSTYPE}"
+}
+
+# --- btrfs swap-file creation (requires NOCOW + dd) ---
+create_swap_btrfs() {
+    log_step "Creating ${SWAP_FILE_SIZE_MB} MB swap file on btrfs ..."
+
+    # Sanity: multi-device btrfs is unsupported for swap files
+    if command -v btrfs &>/dev/null; then
+        local dev_count
+        dev_count=$(btrfs filesystem show 2>/dev/null | grep -c "^Label:" || echo 1)
+        # Better check: count devices in the filesystem
+        dev_count=$(btrfs device usage "$(findmnt -n -o TARGET /)" 2>/dev/null \
+                    | grep -c "^\s*/dev/" || echo 1)
+        if (( dev_count > 1 )); then
+            log_error "Multi-device btrfs detected - swap files on multi-device btrfs are NOT supported."
+            log_error "Please use a dedicated swap partition instead."
+            return 1
+        fi
+    fi
+
+    # Remove old file if needed
+    if [[ -f "$SWAP_FILE_PATH" ]]; then
+        run_cmd swapoff "$SWAP_FILE_PATH" 2>/dev/null || true
+        run_cmd rm -f "$SWAP_FILE_PATH"
+    fi
+
+    # btrfs requires: empty file -> chattr +C -> dd -> mkswap
+    # (fallocate creates preallocated/hole extents that break swap on btrfs)
+    log_verbose "Creating empty file and setting NOCOW attribute ..."
+    run_cmd touch "$SWAP_FILE_PATH"
+    run_cmd chattr +C "$SWAP_FILE_PATH"
+
+    # Verify +C was applied
+    if ! $OPT_DRY_RUN; then
+        local attrs
+        attrs=$(lsattr "$SWAP_FILE_PATH" 2>/dev/null | awk '{print $1}')
+        if [[ "$attrs" != *C* ]]; then
+            log_warn "chattr +C may not have taken effect (attrs: ${attrs})"
+            log_warn "The swap file might still use COW, which can break hibernation."
+        fi
+    fi
+
+    log_verbose "Creating sparse file (blocks allocated on use) ..."
+    run_cmd truncate -s "${SWAP_FILE_SIZE_MB}M" "$SWAP_FILE_PATH"
+
+    run_cmd chmod 0600 "$SWAP_FILE_PATH"
+    run_cmd mkswap "$SWAP_FILE_PATH"
+    log_ok "Swap file created on btrfs"
+}
+
+# --- Dispatcher ---
+create_swap_file() {
+    # Ensure the parent directory exists
+    local dir
+    dir=$(dirname "$SWAP_FILE_PATH")
+    [[ -d "$dir" ]] || { log_error "Directory $dir does not exist."; return 1; }
+
+    case "$ROOT_FSTYPE" in
+        ext4|ext3|ext2|xfs)  create_swap_ext4_xfs ;;
+        btrfs)                create_swap_btrfs     ;;
+        *)
+            log_error "Unsupported root filesystem: ${ROOT_FSTYPE}"
+            log_error "Supported: ext2, ext3, ext4, btrfs, xfs"
+            return 1
+            ;;
+    esac
+}
+
+activate_swap() {
+    local target="$1"
+    if swapon --show=NAME --noheadings 2>/dev/null | grep -qF "$target"; then
+        log_verbose "Swap $target is already active"
+        return 0
+    fi
+    run_cmd swapon "$target"
+    if ! $OPT_DRY_RUN; then
+        swapon --show=NAME --noheadings 2>/dev/null | grep -qF "$target" \
+            && log_ok "Swap activated: $target" \
+            || { log_error "Failed to activate swap: $target"; return 1; }
+    fi
+}
+
+# ============================================================================
+#  RESUME OFFSET CALCULATION
+# ============================================================================
+
+calculate_resume_offset() {
+    local swapfile="$1"
+    SWAP_OFFSET=0
+
+    if $OPT_DRY_RUN; then
+        log_info "[dry-run] Would compute resume offset for ${swapfile}"
+        return 0
+    fi
+
+    case "$ROOT_FSTYPE" in
+        ext4|ext3|ext2|xfs)
+            # filefrag reports the physical extent start in filesystem blocks.
+            # The kernel expects the offset in PAGE_SIZE units.
+            # On x86_64 both are typically 4096, but we convert to be safe.
+            log_debug "Computing resume_offset via filefrag ..."
+            local phys_start
+            phys_start=$(filefrag -v "$swapfile" 2>/dev/null \
+                         | awk '/^[[:space:]]*0:/ { gsub(/\.\./,"",$4); print $4; exit }')
+            if [[ -z "$phys_start" ]]; then
+                # Fallback: try the 4th line, 4th column
+                phys_start=$(filefrag -v "$swapfile" 2>/dev/null \
+                             | sed -n '4p' | awk '{print $4}' | sed 's/\.\.//')
+            fi
+            if [[ -z "$phys_start" ]]; then
+                log_error "Could not determine physical offset via filefrag."
+                return 1
+            fi
+
+            local blk_sz page_sz
+            blk_sz=$(stat -f -c %S "$swapfile" 2>/dev/null || echo 4096)
+            page_sz=$(getconf PAGE_SIZE 2>/dev/null || echo 4096)
+
+            if (( blk_sz == page_sz )); then
+                SWAP_OFFSET=$phys_start
+            else
+                SWAP_OFFSET=$(( phys_start * blk_sz / page_sz ))
+            fi
+            ;;
+
+        btrfs)
+            log_debug "Computing resume_offset via btrfs inspect-internal ..."
+            if ! command -v btrfs &>/dev/null; then
+                log_error "btrfs-progs is required for swap offset calculation on btrfs."
+                return 1
+            fi
+            SWAP_OFFSET=$(btrfs inspect-internal map-swapfile -r "$swapfile" 2>/dev/null)
+            if [[ -z "$SWAP_OFFSET" ]]; then
+                log_error "btrfs inspect-internal map-swapfile failed."
+                log_error "Ensure kernel >= 5.0 and btrfs-progs >= 5.1."
+                return 1
+            fi
+            ;;
+
+        *)
+            log_error "Resume offset calculation not supported for ${ROOT_FSTYPE}"
+            return 1
+            ;;
+    esac
+
+    log_ok "Resume offset (in pages): ${SWAP_OFFSET}"
+}
+
+# ============================================================================
+#  PHASE 4 - RESUME DEVICE & BOOT CONFIGURATION
+# ============================================================================
+
+# Determine the block device and UUID to put in resume=
+resolve_resume_device() {
+    if $USE_SWAP_FILE; then
+        # The resume device is the block device that hosts the swap file
+        RESUME_DEVICE="$ROOT_SOURCE"
+    else
+        # Pick the largest active swap partition
+        RESUME_DEVICE=$(swapon --show=NAME,TYPE,SIZE --noheadings --bytes 2>/dev/null \
+                        | awk '$2=="partition"{print $1, $3}' \
+                        | sort -k2 -rn | head -1 | awk '{print $1}')
+        [[ -z "$RESUME_DEVICE" ]] && \
+            RESUME_DEVICE=$(swapon --show=NAME --noheadings 2>/dev/null | head -1)
+    fi
+
+    if [[ -z "$RESUME_DEVICE" ]]; then
+        log_error "Could not determine a resume device."
+        return 1
+    fi
+
+    # Get the UUID that udev will resolve via /dev/disk/by-uuid/
+    RESUME_UUID=$(blkid -s UUID -o value "$RESUME_DEVICE" 2>/dev/null || true)
+    if [[ -z "$RESUME_UUID" ]]; then
+        log_warn "Could not read UUID from ${RESUME_DEVICE}; falling back to device path."
+    fi
+
+    log_ok "Resume device : ${RESUME_DEVICE}"
+    [[ -n "$RESUME_UUID" ]] && log_ok "Resume UUID   : ${RESUME_UUID}"
+}
+
+build_resume_params() {
+    local resume_arg offset_arg=""
+
+    if [[ -n "$RESUME_UUID" ]]; then
+        resume_arg="resume=UUID=${RESUME_UUID}"
+    else
+        resume_arg="resume=${RESUME_DEVICE}"
+    fi
+
+    if $USE_SWAP_FILE && (( SWAP_OFFSET > 0 )); then
+        offset_arg="resume_offset=${SWAP_OFFSET}"
+    fi
+
+    FULL_RESUME_PARAMS="${resume_arg}${offset_arg:+ $offset_arg}"
+    log_ok "Kernel params : ${FULL_RESUME_PARAMS}"
+}
+
+# ---- initramfs (/etc/initramfs-tools/conf.d/resume) ----
+configure_initramfs() {
+    local conf="/etc/initramfs-tools/conf.d/resume"
+    log_step "Configuring initramfs (${conf}) ..."
+
+    local value=""
+    if [[ -n "$RESUME_UUID" ]]; then
+        value="UUID=${RESUME_UUID}"
+    else
+        value="$RESUME_DEVICE"
+    fi
+    local content="RESUME=${value}"
+
+    # Backup
+    [[ -f "$conf" ]] && run_cmd cp -a "$conf" "${conf}.bak.$(file_hash "$conf" 2>/dev/null || date +%s)"
+
+    if ! $OPT_DRY_RUN; then
+        echo "$content" > "$conf"
+        log_verbose "Wrote: ${content}  ->  ${conf}"
+    fi
+    log_ok "initramfs resume config written"
+}
+
+# ---- GRUB (/etc/default/grub) ----
+configure_grub() {
+    local grub="/etc/default/grub"
+    log_step "Configuring GRUB (${grub}) ..."
+
+    [[ -f "$grub" ]] || { log_error "File not found: ${grub}"; return 1; }
+
+    # Backup
+    run_cmd cp -a "$grub" "${grub}.bak.$(file_hash "$grub" 2>/dev/null || date +%s)"
+
+    # Read current value of GRUB_CMDLINE_LINUX_DEFAULT
+    local old_line old_val
+    old_line=$(grep -E '^GRUB_CMDLINE_LINUX_DEFAULT=' "$grub" | head -1)
+    old_val=$(sed -E 's/^GRUB_CMDLINE_LINUX_DEFAULT="(.*)"/\1/' <<< "$old_line")
+
+    log_debug "Old GRUB cmdline: ${old_val}"
+
+    # Strip stale resume=, resume_offset=, and noresume from the old value
+    local new_val
+    new_val=$(echo " $old_val " \
+              | sed -E 's/\s+resume=\S+//g; s/\s+resume_offset=\S+//g; s/\s+noresume//g' \
+              | sed 's/^ *//; s/ *$//')
+
+    # Append new params
+    new_val="${new_val:+${new_val} }${FULL_RESUME_PARAMS}"
+    log_ok "New GRUB cmdline: ${new_val}"
+
+    if ! $OPT_DRY_RUN; then
+        local escaped_old escaped_new
+        escaped_old=$(printf '%s\n' "$old_val" | sed 's/[&/\]/\\&/g')
+        escaped_new=$(printf '%s\n' "$new_val" | sed 's/[&/\]/\\&/g')
+        sed -i "s|^GRUB_CMDLINE_LINUX_DEFAULT=\"${escaped_old}\"|GRUB_CMDLINE_LINUX_DEFAULT=\"${escaped_new}\"|" "$grub"
+
+        # Verify
+        if ! grep -q "resume=" "$grub"; then
+            log_error "GRUB update verification failed - 'resume=' not found in ${grub}"
+            return 1
+        fi
+    fi
+    log_ok "GRUB config updated"
+}
+
+# ---- Rebuild initramfs & GRUB config ----
+rebuild_boot() {
+    if $OPT_NO_UPDATE_BOOT; then
+        log_warn "Skipping boot rebuild (--no-update-boot)."
+        return 0
+    fi
+
+    log_step "Rebuilding initramfs ..."
+    if ! $OPT_DRY_RUN; then
+        update-initramfs -u -k all 2>&1 | while IFS= read -r l; do log_debug "  $l"; done
+    else
+        log_info "[dry-run] update-initramfs -u -k all"
+    fi
+    log_ok "initramfs rebuilt"
+
+    log_step "Rebuilding GRUB configuration ..."
+    if ! $OPT_DRY_RUN; then
+        update-grub 2>&1 | while IFS= read -r l; do log_debug "  $l"; done
+    else
+        log_info "[dry-run] update-grub"
+    fi
+    log_ok "GRUB configuration rebuilt"
+
+    BOOT_CFG_CHANGED=true
+}
+
+# ============================================================================
+#  PHASE 5 - HIBERNATION EXECUTION
+# ============================================================================
+
+perform_hibernate() {
+    log_step "Initiating hibernation ..."
+
+    if $OPT_DRY_RUN; then
+        log_info "[dry-run] Would execute: echo disk > /sys/power/state"
+        return 0
+    fi
+
+    # Verify swap is active
+    if ! swapon --show --noheadings 2>/dev/null | grep -q .; then
+        log_error "No active swap - cannot hibernate."
+        return 1
+    fi
+
+    # Compute resume offset and rebuild boot config (blocks allocated on use)
+    calculate_resume_offset "$SWAP_FILE_PATH" || exit 1
+    build_resume_params
+    configure_grub         || exit 1
+    rebuild_boot           || exit 1
+    save_state
+
+    # Sync & flush
+    log_verbose "Syncing filesystems ..."
+    sync
+    log_verbose "Dropping caches ..."
+    echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+
+    log_warn "System will hibernate now.  Press the power button to resume."
+    sleep 2
+
+    case "$OPT_METHOD" in
+        systemctl)
+            log_verbose "Using systemctl hibernate"
+            systemctl hibernate
+            ;;
+        kernel)
+            log_verbose "Using kernel power interface"
+            echo disk > /sys/power/state
+            ;;
+        auto|*)
+            # Try systemctl first, fall back to kernel
+            if command -v systemctl &>/dev/null; then
+                log_verbose "Trying systemctl hibernate ..."
+                if ! systemctl hibernate 2>/dev/null; then
+                    log_warn "systemctl hibernate failed; falling back to kernel interface."
+                    echo disk > /sys/power/state
+                fi
+            else
+                echo disk > /sys/power/state
+            fi
+            ;;
+    esac
+}
+
+# ============================================================================
+#  SYSTEMD CLEANUP SERVICE
+# ============================================================================
+
+install_cleanup_service() {
+    local svc="/etc/systemd/system/${PROG}-cleanup.service"
+    log_step "Installing post-resume cleanup service ..."
+
+    if $OPT_DRY_RUN; then
+        log_info "[dry-run] Would create ${svc}"
+        return 0
+    fi
+
+    cat > "$svc" << UNIT
+[Unit]
+Description=${PROG}: remove hibernation swap file after resume
+After=hibernate.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/swapoff ${SWAP_FILE_PATH}
+ExecStart=/bin/rm -f ${SWAP_FILE_PATH}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=hibernate.target
+UNIT
+
+    systemctl daemon-reload
+    systemctl enable --quiet "${PROG}-cleanup.service"
+    log_ok "Service installed: ${svc}"
+}
+
+uninstall_cleanup_service() {
+    local svc="/etc/systemd/system/${PROG}-cleanup.service"
+    [[ -f "$svc" ]] || return 0
+    log_step "Removing cleanup service ..."
+    systemctl disable --quiet "${PROG}-cleanup.service" 2>/dev/null || true
+    rm -f "$svc"
+    systemctl daemon-reload 2>/dev/null || true
+    log_ok "Cleanup service removed"
+}
+
+# ============================================================================
+#  STATE PERSISTENCE (so --revert can undo changes)
+# ============================================================================
+
+save_state() {
+    mkdir -p "$STATE_DIR"
+    cat > "$STATE_FILE" << EOF
+# ${PROG} state - generated $(date -Is)
+SWAP_FILE_PATH=${SWAP_FILE_PATH}
+SWAP_FILE_SIZE_MB=${SWAP_FILE_SIZE_MB}
+RESUME_DEVICE=${RESUME_DEVICE}
+RESUME_UUID=${RESUME_UUID}
+SWAP_OFFSET=${SWAP_OFFSET}
+GRUB_BACKUP=$(ls -1 /etc/default/grub.bak.* 2>/dev/null | tail -1)
+INITRAMFS_BACKUP=$(ls -1 /etc/initramfs-tools/conf.d/resume.bak.* 2>/dev/null | tail -1)
+EOF
+    log_debug "State saved to ${STATE_FILE}"
+}
+
+revert_changes() {
+    log_step "Reverting ${PROG} changes ..."
+
+    if [[ ! -f "$STATE_FILE" ]]; then
+        log_error "No state file found (${STATE_FILE}).  Cannot revert."
+        return 1
+    fi
+
+    # Source the state
+    # shellcheck disable=SC1090
+    source "$STATE_FILE"
+
+    # Remove swap file
+    if [[ -n "${SWAP_FILE_PATH:-}" && -f "${SWAP_FILE_PATH}" ]]; then
+        log_info "Removing swap file: ${SWAP_FILE_PATH}"
+        swapoff "$SWAP_FILE_PATH" 2>/dev/null || true
+        rm -f "$SWAP_FILE_PATH"
+    fi
+
+    # Restore GRUB backup
+    if [[ -n "${GRUB_BACKUP:-}" && -f "${GRUB_BACKUP}" ]]; then
+        log_info "Restoring GRUB config from ${GRUB_BACKUP}"
+        cp -a "$GRUB_BACKUP" /etc/default/grub
+        update-grub 2>&1 | while IFS= read -r l; do log_debug "  $l"; done
+    fi
+
+    # Restore initramfs backup
+    if [[ -n "${INITRAMFS_BACKUP:-}" && -f "${INITRAMFS_BACKUP}" ]]; then
+        log_info "Restoring initramfs config from ${INITRAMFS_BACKUP}"
+        cp -a "$INITRAMFS_BACKUP" /etc/initramfs-tools/conf.d/resume
+        update-initramfs -u -k all 2>&1 | while IFS= read -r l; do log_debug "  $l"; done
+    fi
+
+    # Remove cleanup service
+    uninstall_cleanup_service
+
+    rm -f "$STATE_FILE"
+    log_ok "All ${PROG} changes reverted."
+}
+
+# ============================================================================
+#  STATUS REPORT
+# ============================================================================
+
+print_status() {
+    detect_ram
+    detect_root_fs
+    detect_luks
+    detect_existing_swap
+    check_hibernate_kernel_support || true
+    analyse_swap_needs
+
+    echo ""
+    echo "+------------------------------------------------------------------+"
+    echo "|  ${C_BD}${PROG} - Status${C_NC}                                            |"
+    echo "+------------------------------------------------------------------+"
+    printf "|  %-22s %-42s |\n" "RAM:"         "${RAM_TOTAL_MB} MB"
+    printf "|  %-22s %-42s |\n" "Root device:"  "${ROOT_SOURCE}"
+    printf "|  %-22s %-42s |\n" "Filesystem:"   "${ROOT_FSTYPE}"
+    printf "|  %-22s %-42s |\n" "LUKS:"         "$( $IS_LUKS && echo yes || echo no )"
+    printf "|  %-22s %-42s |\n" "Active swap:"  "$(fmt_bytes $((EXISTING_SWAP_KB*1024)))"
+    printf "|  %-22s %-42s |\n" "Swap sufficient:" "$( $SWAP_SUFFICIENT && echo YES || echo NO )"
+    echo "+------------------------------------------------------------------+"
+
+    # Check current GRUB resume params
+    local grub_resume
+    grub_resume=$(grep -oP 'resume=\S+(?:\s+resume_offset=\S+)?' /etc/default/grub 2>/dev/null || true)
+    printf "|  %-22s %-42s |\n" "GRUB resume:" "${grub_resume:-<not set>}"
+
+    local initramfs_resume
+    initramfs_resume=$(cat /etc/initramfs-tools/conf.d/resume 2>/dev/null || echo "<not set>")
+    printf "|  %-22s %-42s |\n" "initramfs resume:" "${initramfs_resume}"
+
+    # Kernel cmdline (current boot)
+    local cmdline_resume
+    cmdline_resume=$(grep -oP 'resume=\S+(?:\s+resume_offset=\S+)?' /proc/cmdline 2>/dev/null || true)
+    printf "|  %-22s %-42s |\n" "Current cmdline:" "${cmdline_resume:-<not set>}"
+
+    echo "+------------------------------------------------------------------+"
+}
+
+# ============================================================================
+#  ARGUMENT PARSING
+# ============================================================================
+
+parse_args() {
+    while (( $# > 0 )); do
+        case "$1" in
+            -h|--help)            show_help; exit 0 ;;
+            -V|--version)         show_version; exit 0 ;;
+            -d|--dry-run)         OPT_DRY_RUN=true ;;
+            -v|--verbose)         OPT_VERBOSE=true ;;
+            -D|--debug)           OPT_DEBUG=true; OPT_VERBOSE=true ;;
+            -y|--yes)             OPT_YES=true ;;
+            -f|--force)           OPT_FORCE=true ;;
+            -s|--setup-only)      OPT_SETUP_ONLY=true ;;
+            -H|--hibernate-only)  OPT_HIBERNATE_ONLY=true ;;
+            -n|--no-update-boot)  OPT_NO_UPDATE_BOOT=true ;;
+            -c|--create-service)  OPT_CREATE_SERVICE=true ;;
+            -S|--status)          OPT_STATUS=true ;;
+            -R|--revert)          OPT_REVERT=true ;;
+            -m|--method)
+                shift
+                [[ "$1" =~ ^(auto|systemctl|kernel)$ ]] || { log_error "Invalid method: $1"; exit 1; }
+                OPT_METHOD="$1"
+                ;;
+            --swap-file)
+                shift
+                OPT_SWAP_FILE="$1"
+                [[ "$OPT_SWAP_FILE" == /* ]] || { log_error "Swap file path must be absolute."; exit 1; }
+                ;;
+            --swap-size)
+                shift
+                OPT_SWAP_SIZE="$1"
+                [[ "$OPT_SWAP_SIZE" =~ ^[0-9]+$ ]] || { log_error "Swap size must be a number (MB)."; exit 1; }
+                ;;
+            --)                   shift; break ;;
+            -*)                   log_error "Unknown option: $1"; show_help; exit 1 ;;
+            *)                    log_error "Unexpected argument: $1"; show_help; exit 1 ;;
+        esac
+        shift
+    done
+}
+
+# ============================================================================
+#  ARGUMENT VALIDATION
+# ============================================================================
+
+validate_args() {
+    if $OPT_SETUP_ONLY && $OPT_HIBERNATE_ONLY; then
+        log_error "--setup-only and --hibernate-only are mutually exclusive."
+        exit 1
+    fi
+    if $OPT_HIBERNATE_ONLY && $OPT_DRY_RUN; then
+        log_error "--hibernate-only with --dry-run makes no sense."
+        exit 1
+    fi
+}
+
+# ============================================================================
+#  MAIN
+# ============================================================================
+
+main() {
+    parse_args "$@"
+    validate_args
+
+    # ---- Banner ----
+    echo ""
+    echo -e "${C_BD}+==========================================================+${C_NC}"
+    echo -e "${C_BD}|   ${PROG} v${VERSION}  -  Debian 13 / Elive Linux              |${C_NC}"
+    echo -e "${C_BD}+==========================================================+${C_NC}"
+
+    $OPT_DRY_RUN && log_warn "DRY-RUN mode - no changes will be written."
+    $OPT_DEBUG   && log_warn "Debug mode - expect very verbose output."
+
+    # ---- Special modes ----
+    if $OPT_STATUS; then
+        require_root
+        print_status
+        exit 0
+    fi
+    if $OPT_REVERT; then
+        require_root
+        revert_changes
+        exit 0
+    fi
+
+    require_root
+
+    # ================================================================
+    #  PHASE 1: Detect environment
+    # ================================================================
+    log_step "Phase 1: Environment Detection"
+    detect_ram
+    detect_root_fs
+    detect_luks
+    detect_existing_swap
+    check_hibernate_kernel_support || {
+        log_error "Kernel does not support hibernation.  Aborting."
+        exit 1
+    }
+
+    # ================================================================
+    #  PHASE 2: Dependencies
+    # ================================================================
+    log_step "Phase 2: Dependency Check"
+    if ! check_dependencies; then
+        confirm_or_exit "Attempt to install missing packages?"
+        install_missing_packages
+        check_dependencies || exit 1
+    fi
+
+    # ================================================================
+    #  PHASE 3: Swap setup
+    # ================================================================
+    log_step "Phase 3: Swap Configuration"
+    analyse_swap_needs
+
+    USE_SWAP_FILE=false
+    if ! $SWAP_SUFFICIENT || $OPT_FORCE; then
+        USE_SWAP_FILE=true
+        prepare_swap_file || exit 1
+
+        # Create only if the file doesn't already satisfy requirements
+        local needs_creation=true
+        if [[ -f "$SWAP_FILE_PATH" ]] && ! $OPT_FORCE; then
+            local sz
+            sz=$(stat -c %s "$SWAP_FILE_PATH" 2>/dev/null || echo 0)
+            (( sz >= SWAP_FILE_SIZE_MB * 1048576 )) && needs_creation=false
+        fi
+
+        if $needs_creation; then
+            confirm_or_exit "Create a ${SWAP_FILE_SIZE_MB} MB swap file at ${SWAP_FILE_PATH}?"
+            create_swap_file || exit 1
+        fi
+
+        activate_swap "$SWAP_FILE_PATH" || exit 1
+    else
+        log_ok "Using existing swap - no swap file needed."
+    fi
+
+    # ================================================================
+    #  PHASE 4: Boot configuration
+    # ================================================================
+    if ! $OPT_HIBERNATE_ONLY; then
+        log_step "Phase 4: Boot Configuration"
+        resolve_resume_device  || exit 1
+        build_resume_params
+
+        configure_initramfs    || exit 1
+
+        # Optional cleanup service
+        if $OPT_CREATE_SERVICE && $USE_SWAP_FILE; then
+            install_cleanup_service
+        fi
+    fi
+
+    # ================================================================
+    #  PHASE 5: Hibernate (or summary)
+    # ================================================================
+    if $OPT_SETUP_ONLY; then
+        echo ""
+        log_ok "Setup complete!"
+        echo ""
+        echo "  +---------------------------------------------------------+"
+        echo "  |  A reboot is required for the new kernel parameters     |"
+        echo "  |  to take effect.  After rebooting, hibernate with:      |"
+        echo "  |                                                         |"
+        echo "  |    sudo ./${PROG##*/} --hibernate-only               |"
+        echo "  |                                                         |"
+        echo "  |  Or simply run the script with no flags:                |"
+        echo "  |    sudo ./${PROG##*/}                                |"
+        echo "  +---------------------------------------------------------+"
+    else
+        # Print a compact summary before hibernating
+        echo ""
+        echo -e "${C_BD}Configuration summary:${C_NC}"
+        printf "  Swap device   : %s\n" "${RESUME_DEVICE:-$SWAP_FILE_PATH}"
+        printf "  Resume params : %s\n" "${FULL_RESUME_PARAMS}"
+        [[ -n "$SWAP_OFFSET" ]] && printf "  Offset        : %s pages\n" "${SWAP_OFFSET}"
+        echo ""
+
+        confirm_or_exit "Proceed with hibernation?"
+        perform_hibernate || exit 1
+    fi
+}
+
+# ============================================================================
+#  ENTRY POINT
+# ============================================================================
+main "$@"

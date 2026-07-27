@@ -425,9 +425,16 @@ do_fallback(){
             fi
             ;;
         hibernate|stop)
-            if ! /usr/sbin/pm-hibernate 2>/dev/null ; then
-                el_sudo /usr/sbin/pm-hibernate
-                return $?
+            if swapon -s | grep -q "^/dev/" ; then
+                if ! /usr/sbin/pm-hibernate 2>/dev/null ; then
+                    el_sudo /usr/sbin/pm-hibernate
+                    return $?
+                fi
+            else
+                if ! /usr/sbin/hibernate-from-file -y 2>/dev/null ; then
+                    el_sudo /usr/sbin/hibernate-from-file -y
+                    return $?
+                fi
             fi
             ;;
         suspend)
@@ -527,42 +534,28 @@ do_action(){
     # check and infor for possible things required
     case "$action" in
         hibernate|suspend-then-hibernate)
-            # Check for a resume configuration in GRUB
-            if ! grep -qsE "LINUX_DEFAULT.*resume=" /etc/default/grub ; then
-                guitool error "$( eval_gettext "Hibernation requires a 'resume' parameter in your GRUB configuration that points to your swap partition. Add it to enable this feature." )"
-                exit
-            fi
-            # Check for active swap space:
-            if [[ "$( LC_ALL="$EL_LC_EN" free -m | grep -i "^Swap:" | awk '{print $2}' )" = 0 ]] ; then
-                if grep -qsw "swap" /etc/fstab ; then
-                    gksu "swapon -a"
-                    sync
-                fi
-                if [[ "$( LC_ALL="$EL_LC_EN" free -m | grep -i "^Swap:" | awk '{print $2}' )" = 0 ]] ; then
-                    guitool warning "$( eval_gettext "No active swap partition was found. Hibernation requires an active swap partition. Ensure one is configured and enabled." )"
-                    exit
-                fi
-            fi
             ;;
     esac
 
     # check for enough swap space needed:
     if echo "$action" | grep -Fqs "hibernate" ; then
-        #mem_ram_used="$( LC_ALL=C free -m -t | grep "^Mem:" | awk '{print $3}' )"
-        mem_ram_used="$( LC_ALL=C free -m -t | grep -i "^Total:" | awk '{print $3}' )"
-        mem_swap_free="$( LC_ALL=C free -m -t | grep -i "^Swap:" | awk '{print $4}' )"
-        mem_swap_free="$( echo "${mem_swap_free} - (( ${mem_swap_free} / 100 ) * 10 )" | LC_ALL=C bc -l | sed -e 's|\..*$||' )" # reduce the free space number to 90%
+        if swapon -s | grep -q "^/dev/" ; then
+            #mem_ram_used="$( LC_ALL=C free -m -t | grep "^Mem:" | awk '{print $3}' )"
+            mem_ram_used="$( LC_ALL=C free -m -t | grep -i "^Total:" | awk '{print $3}' )"
+            mem_swap_free="$( LC_ALL=C free -m -t | grep -i "^Swap:" | awk '{print $4}' )"
+            mem_swap_free="$( echo "${mem_swap_free} - (( ${mem_swap_free} / 100 ) * 10 )" | LC_ALL=C bc -l | sed -e 's|\..*$||' )" # reduce the free space number to 90%
 
-        if [[ "$mem_ram_used" -ge "${mem_swap_free}" ]] ; then
-            el_info "$( eval_gettext "Not enough SWAP space for hibernation (RAM used: ${mem_ram_used}MB, Swap free: ${mem_swap_free}MB). Attempting to free memory..." )"
-            for i in chrome chromium google-chrome firefox firefox-esr palemoon tumblerd opera
-            do
-                el_debug "Killing process $i to free memory for hibernation."
-                killall "$i"     1>/dev/null 2>&1
-                killall -9 "$i"  1>/dev/null 2>&1
-            done
-            sync
-            sleep 2
+            if [[ "$mem_ram_used" -ge "${mem_swap_free}" ]] ; then
+                el_info "$( eval_gettext "Not enough SWAP space for hibernation (RAM used: ${mem_ram_used}MB, Swap free: ${mem_swap_free}MB). Attempting to free memory..." )"
+                for i in chrome chromium google-chrome firefox firefox-esr palemoon tumblerd opera
+                do
+                    el_debug "Killing process $i to free memory for hibernation."
+                    killall "$i"     1>/dev/null 2>&1
+                    killall -9 "$i"  1>/dev/null 2>&1
+                done
+                sync
+                sleep 2
+            fi
         fi
     fi
 
