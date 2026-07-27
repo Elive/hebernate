@@ -188,7 +188,9 @@ show_execution_stacks_from_names(){
 
 check_and_inform_when_processes_running(){
     # pre {{{
-    local watcher
+    local action watcher
+
+    action="$1"
 
     local message_wait_processes_title
     message_wait_processes_title="$( printf "$( eval_gettext "Waiting for Processes to Complete" )" "" )"
@@ -309,9 +311,11 @@ check_and_inform_when_processes_running(){
                 done
             fi
         else
-            el_debug "No active swap partition found via swapon -s."
-            el_info "Setting up swap file via hibernate-from-file..."
-            el_sudo hibernate-from-file --setup-only --yes
+            if echo "$action" | grep -Fqs "hibernate" ; then
+                el_debug "No active swap partition found via swapon -s."
+                el_info "Setting up swap file via hibernate-from-file..."
+                el_sudo hibernate-from-file --setup-only --yes
+            fi
         fi
     fi
 }
@@ -557,7 +561,7 @@ do_action(){
             true
             ;;
         shutdown|poweroff|reboot)
-            check_and_inform_when_processes_running
+            check_and_inform_when_processes_running "$action"
             ;;
         *)
             el_warning "not implemented $action"
