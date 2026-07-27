@@ -561,6 +561,10 @@ calculate_resume_offset() {
                 log_error "Ensure kernel >= 5.0 and btrfs-progs >= 5.1."
                 return 1
             fi
+            # btrfs returns byte offset, but kernel expects page offset
+            local page_sz
+            page_sz=$(getconf PAGE_SIZE 2>/dev/null || echo 4096)
+            SWAP_OFFSET=$(( SWAP_OFFSET / page_sz ))
             ;;
 
         *)
@@ -1080,6 +1084,11 @@ main() {
             fi
         fi
     else
+        # Check if existing active swap is a file (not a partition)
+        if swapon --show=TYPE --noheadings 2>/dev/null | grep -q "^file$"; then
+            USE_SWAP_FILE=true
+            SWAP_FILE_PATH=$(swapon --show=NAME,TYPE --noheadings 2>/dev/null | awk '$2=="file"{print $1}' | head -1)
+        fi
         log_ok "Using existing swap - no swap file needed."
     fi
 
