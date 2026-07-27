@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  smart-hibernate - Dynamic Hibernation Setup & Execution
+#  hibernate-from-file - Dynamic Hibernation Setup & Execution
 # ============================================================================
 #  Designed for Debian 13 Trixie / Elive Linux
 #
@@ -9,8 +9,8 @@
 #           Automatic swap-file creation when no/insufficient swap exists
 #           Kernel, initramfs, and GRUB configuration
 #
-#  Usage:  sudo ./smart-hibernate.sh [OPTIONS]
-#  Help:   sudo ./smart-hibernate.sh --help
+#  Usage:  sudo hibernate-from-file [OPTIONS]
+#  Help:   sudo hibernate-from-file --help
 #
 #  License: GPL-3.0
 # ============================================================================
@@ -28,8 +28,8 @@ fi
 # ============================================================================
 #  CONSTANTS
 # ============================================================================
-readonly PROG="smart-hibernate"
-readonly VERSION="2.0.0"
+readonly PROG="hibernate-from-file"
+readonly VERSION="1.0.0"
 readonly DEFAULT_SWAP_FILE="/swapfile.swp"
 readonly STATE_DIR="/var/lib/${PROG}"
 readonly STATE_FILE="${STATE_DIR}/state.conf"
@@ -734,8 +734,14 @@ perform_hibernate() {
     # Compute resume offset and rebuild boot config (blocks allocated on use)
     calculate_resume_offset "$SWAP_FILE_PATH" || exit 1
     build_resume_params
-    configure_grub         || exit 1
-    rebuild_boot           || exit 1
+
+    # Skip boot reconfiguration if resume parameters already present in GRUB
+    if grep -qF "$FULL_RESUME_PARAMS" /etc/default/grub 2>/dev/null; then
+        log_ok "Boot configuration already correct, skipping reconfiguration"
+    else
+        configure_grub         || exit 1
+        rebuild_boot           || exit 1
+    fi
     save_state
 
     # Sync & flush
