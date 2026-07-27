@@ -647,9 +647,6 @@ configure_initramfs() {
         return 0
     fi
 
-    # Backup
-    [[ -f "$conf" ]] && run_cmd cp -a "$conf" "${conf}.bak.$(file_hash "$conf" 2>/dev/null || date +%s)"
-
     if ! $OPT_DRY_RUN; then
         echo "$content" > "$conf"
         log_verbose "Wrote: ${content}  ->  ${conf}"
@@ -664,9 +661,6 @@ configure_grub() {
     log_step "Configuring GRUB (${grub}) ..."
 
     [[ -f "$grub" ]] || { log_error "File not found: ${grub}"; return 1; }
-
-    # Backup
-    run_cmd cp -a "$grub" "${grub}.bak.$(file_hash "$grub" 2>/dev/null || date +%s)"
 
     # Read current value of GRUB_CMDLINE_LINUX_DEFAULT
     local old_line old_val
@@ -880,8 +874,6 @@ SWAP_FILE_SIZE_MB=${SWAP_FILE_SIZE_MB}
 RESUME_DEVICE=${RESUME_DEVICE}
 RESUME_UUID=${RESUME_UUID}
 SWAP_OFFSET=${SWAP_OFFSET}
-GRUB_BACKUP=$(ls -1 /etc/default/grub.bak.* 2>/dev/null | tail -1)
-INITRAMFS_BACKUP=$(ls -1 /etc/initramfs-tools/conf.d/resume.bak.* 2>/dev/null | tail -1)
 EOF
     log_debug "State saved to ${STATE_FILE}"
 }
@@ -903,20 +895,6 @@ revert_changes() {
         log_info "Removing swap file: ${SWAP_FILE_PATH}"
         swapoff "$SWAP_FILE_PATH" 2>/dev/null || true
         rm -f "$SWAP_FILE_PATH"
-    fi
-
-    # Restore GRUB backup
-    if [[ -n "${GRUB_BACKUP:-}" && -f "${GRUB_BACKUP}" ]]; then
-        log_info "Restoring GRUB config from ${GRUB_BACKUP}"
-        cp -a "$GRUB_BACKUP" /etc/default/grub
-        update-grub 2>&1 | while IFS= read -r l; do log_debug "  $l"; done
-    fi
-
-    # Restore initramfs backup
-    if [[ -n "${INITRAMFS_BACKUP:-}" && -f "${INITRAMFS_BACKUP}" ]]; then
-        log_info "Restoring initramfs config from ${INITRAMFS_BACKUP}"
-        cp -a "$INITRAMFS_BACKUP" /etc/initramfs-tools/conf.d/resume
-        update-initramfs -u -k all 2>&1 | while IFS= read -r l; do log_debug "  $l"; done
     fi
 
     # Remove cleanup service
