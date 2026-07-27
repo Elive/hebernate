@@ -769,6 +769,7 @@ perform_hibernate() {
     else
         # Check if GRUB config already has the correct params
         if grep -qF "$FULL_RESUME_PARAMS" /etc/default/grub 2>/dev/null; then
+            log_ok "GRUB config already has correct resume parameters"
         else
             log_step "Updating boot configuration with resume parameters ..."
             configure_grub         || exit 1
