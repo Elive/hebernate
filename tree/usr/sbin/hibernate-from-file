@@ -358,8 +358,16 @@ prepare_swap_file() {
         existing_bytes=$(stat -c %s "$SWAP_FILE_PATH" 2>/dev/null || echo 0)
         local required_bytes=$((SWAP_FILE_SIZE_MB * 1048576))
         if (( existing_bytes >= required_bytes )); then
-            log_ok "Existing swap file is large enough ($(fmt_bytes $existing_bytes)) - reusing."
-            return 0        # <- skip creation
+            # Verify the swap file is actually active and usable before reusing it.
+            # A file that exists and is large enough may still have holes or be
+            # improperly formatted, causing swapon to fail.
+            if swapon --show=NAME --noheadings 2>/dev/null | grep -qF "$SWAP_FILE_PATH"; then
+                log_ok "Existing swap file is large enough ($(fmt_bytes $existing_bytes)) and active - reusing."
+                return 0        # <- skip creation
+            fi
+            log_warn "Existing swap file is large enough but not active - removing and recreating."
+            run_cmd swapoff "$SWAP_FILE_PATH" 2>/dev/null || true
+            run_cmd rm -f "$SWAP_FILE_PATH"
         else
             log_warn "Existing swap file is too small ($(fmt_bytes $existing_bytes)) - removing and recreating."
             run_cmd swapoff "$SWAP_FILE_PATH" 2>/dev/null || true
@@ -438,8 +446,8 @@ create_swap_btrfs() {
         fi
     fi
 
-    log_verbose "Creating sparse file (blocks allocated on use) ..."
-    run_cmd truncate -s "${SWAP_FILE_SIZE_MB}M" "$SWAP_FILE_PATH"
+    log_verbose "Allocating swap file with dd (no holes) ..."
+    run_cmd dd if=/dev/zero of="$SWAP_FILE_PATH" bs=1M count="$SWAP_FILE_SIZE_MB" status=progress
 
     run_cmd chmod 0600 "$SWAP_FILE_PATH"
     run_cmd mkswap "$SWAP_FILE_PATH"
