@@ -33,7 +33,7 @@ readonly VERSION="1.0.0"
 readonly DEFAULT_SWAP_FILE="/swapfile"
 readonly STATE_DIR="/var/lib/${PROG}"
 readonly STATE_FILE="${STATE_DIR}/state.conf"
-readonly SWAP_MARGIN_PCT=6          # extra % above RAM for the swap file
+readonly SWAP_MARGIN_PCT=8          # extra % above RAM for the swap file
 
 # ============================================================================
 #  GLOBAL STATE - populated at runtime
