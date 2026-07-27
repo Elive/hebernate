@@ -177,6 +177,16 @@ confirm_or_exit() {
 # Simple hash of a file (for backup naming)
 file_hash() { md5sum "$1" 2>/dev/null | cut -c1-8; }
 
+remove_swap_from_fstab() {
+    local swap_path="$1"
+    [[ -f /etc/fstab ]] || return 0
+    if grep -qF "$swap_path" /etc/fstab 2>/dev/null; then
+        log_verbose "Removing ${swap_path} from /etc/fstab"
+        run_cmd grep -vF "$swap_path" /etc/fstab > /etc/fstab.tmp
+        run_cmd mv /etc/fstab.tmp /etc/fstab
+    fi
+}
+
 # ============================================================================
 #  PHASE 1 - ENVIRONMENT DETECTION
 # ============================================================================
@@ -368,10 +378,12 @@ prepare_swap_file() {
             log_warn "Existing swap file is large enough but not active - removing and recreating."
             run_cmd swapoff "$SWAP_FILE_PATH" 2>/dev/null || true
             run_cmd rm -f "$SWAP_FILE_PATH"
+            remove_swap_from_fstab "$SWAP_FILE_PATH"
         else
             log_warn "Existing swap file is too small ($(fmt_bytes $existing_bytes)) - removing and recreating."
             run_cmd swapoff "$SWAP_FILE_PATH" 2>/dev/null || true
             run_cmd rm -f "$SWAP_FILE_PATH"
+            remove_swap_from_fstab "$SWAP_FILE_PATH"
         fi
     fi
 
@@ -396,6 +408,7 @@ create_swap_ext4_xfs() {
     if [[ -f "$SWAP_FILE_PATH" ]]; then
         run_cmd swapoff "$SWAP_FILE_PATH" 2>/dev/null || true
         run_cmd rm -f "$SWAP_FILE_PATH"
+        remove_swap_from_fstab "$SWAP_FILE_PATH"
     fi
 
     log_verbose "Creating sparse file (blocks allocated on use) ..."
@@ -409,6 +422,13 @@ create_swap_ext4_xfs() {
 # --- btrfs swap-file creation (requires NOCOW + dd) ---
 create_swap_btrfs() {
     log_step "Creating ${SWAP_FILE_SIZE_MB} MB swap file on btrfs ..."
+
+    # Remove old file if needed
+    if [[ -f "$SWAP_FILE_PATH" ]]; then
+        run_cmd swapoff "$SWAP_FILE_PATH" 2>/dev/null || true
+        run_cmd rm -f "$SWAP_FILE_PATH"
+        remove_swap_from_fstab "$SWAP_FILE_PATH"
+    fi
 
     # Sanity: multi-device btrfs is unsupported for swap files
     if command -v btrfs &>/dev/null; then
@@ -1039,14 +1059,14 @@ main() {
         else
             if $OPT_YES ; then
                 # Non-interactive mode: auto-add to fstab
-                printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$SWAP_FILE_PATH" "none" "swap" "sw" "0" "0" | tee -a /etc/fstab >/dev/null
+                printf '%s  none  swap  sw  0  0\n' "$SWAP_FILE_PATH" | tee -a /etc/fstab >/dev/null
                 log_ok "Auto-added ${SWAP_FILE_PATH} to /etc/fstab"
             else
                 # Interactive mode: ask the user
                 log_info "Swapfile $SWAP_FILE_PATH created successfully."
                 read -rp "Add swapfile to /etc/fstab so it persists across reboots? [y/N] " ans
                 if [[ "$ans" =~ ^[Yy] ]] ; then
-                    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$SWAP_FILE_PATH" "none" "swap" "sw" "0" "0" | tee -a /etc/fstab >/dev/null
+                    printf '%s  none  swap  sw  0  0\n' "$SWAP_FILE_PATH" | tee -a /etc/fstab >/dev/null
                     log_ok "Added ${SWAP_FILE_PATH} to /etc/fstab"
                 else
                     log_info "Swapfile not added to /etc/fstab."
