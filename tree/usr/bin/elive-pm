@@ -431,8 +431,8 @@ do_fallback(){
                     return $?
                 fi
             else
-                if ! /usr/sbin/hibernate-from-file -y 2>/dev/null ; then
-                    el_sudo /usr/sbin/hibernate-from-file -y
+                if ! el_sudo /usr/sbin/hibernate-from-file -y 2>/dev/null ; then
+                    el_sudo /usr/sbin/hibernate-from-file -y -D -f
                     return $?
                 fi
             fi
