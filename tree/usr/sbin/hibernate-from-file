@@ -775,8 +775,7 @@ perform_hibernate() {
         # Check if GRUB config already has the correct params
         if grep -qF "$FULL_RESUME_PARAMS" /etc/default/grub 2>/dev/null; then
             log_warn "GRUB config is correct but the running kernel cmdline differs."
-            log_warn "A reboot is required before hibernation can succeed."
-            log_warn "Please reboot and then run hibernate again."
+            log_warn "Hibernating anyway — resume will work on the next boot."
         else
             log_step "Updating boot configuration with resume parameters ..."
             configure_grub         || exit 1
@@ -784,9 +783,9 @@ perform_hibernate() {
             log_warn "Boot configuration updated."
             log_warn "A reboot is required before hibernation can succeed."
             log_warn "Please reboot and then run hibernate again."
+            save_state
+            return 0
         fi
-        save_state
-        return 0
     fi
 
     save_state
