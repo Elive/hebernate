@@ -590,6 +590,11 @@ do_action(){
                 sync
                 sleep 2
             fi
+        elif hibernate_from_file_is_ready; then
+            el_info "Hibernation swap file already configured. Proceeding with hibernation..."
+            el_debug "Attempting hibernation via kernel power interface (echo disk > /sys/power/state)..."
+            el_sudo bash -c 'echo disk > /sys/power/state'
+            return
         elif ! hibernate_from_file_is_ready; then
             el_info "No swap found. Setting up swap file via hibernate-from-file..."
             guitool info "Swap file created. Please wait 5 minutes for the swap space to be fully set up before hibernating."
