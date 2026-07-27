@@ -1063,9 +1063,17 @@ main() {
     if ! $OPT_HIBERNATE_ONLY; then
         log_step "Phase 4: Boot Configuration"
         resolve_resume_device  || exit 1
+
+        # Calculate resume offset for swap files so GRUB gets it
+        if $USE_SWAP_FILE; then
+            calculate_resume_offset "$SWAP_FILE_PATH" || exit 1
+        fi
+
         build_resume_params
 
         configure_initramfs    || exit 1
+        configure_grub         || exit 1
+        rebuild_boot           || exit 1
 
         # Optional cleanup service
         if $OPT_CREATE_SERVICE && $USE_SWAP_FILE; then

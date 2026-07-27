@@ -450,14 +450,17 @@ do_fallback(){
             ;;
         hibernate|stop)
             if /sbin/swapon -s | grep -q "^/dev/" ; then
+                el_debug "Attempting hibernation via pm-hibernate..."
                 if ! /usr/sbin/pm-hibernate 2>/dev/null ; then
                     el_sudo /usr/sbin/pm-hibernate
                     return $?
                 fi
             elif hibernate_from_file_is_ready; then
                 el_info "Hibernation swap file already configured. Proceeding with hibernation..."
+                el_debug "Attempting hibernation via kernel power interface (echo disk > /sys/power/state)..."
                 el_sudo bash -c 'echo disk > /sys/power/state'
             else
+                el_debug "Attempting hibernation via hibernate-from-file..."
                 if ! el_sudo /usr/sbin/hibernate-from-file -y 2>/dev/null ; then
                     el_sudo /usr/sbin/hibernate-from-file -y -D -f
                     return $?
@@ -590,6 +593,7 @@ do_action(){
         elif ! hibernate_from_file_is_ready; then
             el_info "No swap found. Setting up swap file via hibernate-from-file..."
             el_sudo hibernate-from-file --setup-only --yes
+            el_info "Swap file created. Please wait 5 minutes for the swap space to be fully set up before hibernating."
         fi
     fi
 
