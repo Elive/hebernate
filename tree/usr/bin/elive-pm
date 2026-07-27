@@ -67,6 +67,26 @@ is_s2idle(){
     return 1
 }
 
+hibernate_from_file_is_ready(){
+    # Check if hibernate-from-file swap is already configured and usable
+    local swap_file="/swapfile.swp"
+
+    # Swap file must exist
+    [[ -f "$swap_file" ]] || return 1
+
+    # Check if swap is already active
+    if swapon -s | grep -qF "$swap_file" 2>/dev/null; then
+        return 0
+    fi
+
+    # Swap file exists but not active - check fstab and try to activate
+    if grep -qF "$swap_file" /etc/fstab 2>/dev/null; then
+        swapon "$swap_file" 2>/dev/null && return 0
+    fi
+
+    return 1
+}
+
 usage(){
     # Usage
     if [[ -z "${1}" ]] ; then
@@ -430,6 +450,9 @@ do_fallback(){
                     el_sudo /usr/sbin/pm-hibernate
                     return $?
                 fi
+            elif hibernate_from_file_is_ready; then
+                el_info "Hibernation swap file already configured. Proceeding with hibernation..."
+                el_sudo bash -c 'echo disk > /sys/power/state'
             else
                 if ! el_sudo /usr/sbin/hibernate-from-file -y 2>/dev/null ; then
                     el_sudo /usr/sbin/hibernate-from-file -y -D -f
