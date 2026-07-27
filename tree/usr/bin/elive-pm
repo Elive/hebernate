@@ -587,6 +587,9 @@ do_action(){
                 sync
                 sleep 2
             fi
+        elif ! hibernate_from_file_is_ready; then
+            el_info "No swap found. Setting up swap file via hibernate-from-file..."
+            el_sudo hibernate-from-file --setup-only --yes
         fi
     fi
 
