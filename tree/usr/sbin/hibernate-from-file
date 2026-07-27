@@ -361,7 +361,9 @@ prepare_swap_file() {
             log_ok "Existing swap file is large enough ($(fmt_bytes $existing_bytes)) - reusing."
             return 0        # <- skip creation
         else
-            log_warn "Existing swap file is too small ($(fmt_bytes $existing_bytes)) - will recreate."
+            log_warn "Existing swap file is too small ($(fmt_bytes $existing_bytes)) - removing and recreating."
+            run_cmd swapoff "$SWAP_FILE_PATH" 2>/dev/null || true
+            run_cmd rm -f "$SWAP_FILE_PATH"
         fi
     fi
 
