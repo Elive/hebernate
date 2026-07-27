@@ -457,8 +457,11 @@ do_fallback(){
                 fi
             elif hibernate_from_file_is_ready; then
                 el_info "Hibernation swap file already configured. Proceeding with hibernation..."
-                el_debug "Attempting hibernation via kernel power interface (echo disk > /sys/power/state)..."
-                el_sudo bash -c 'echo disk > /sys/power/state'
+                el_debug "Attempting hibernation via hibernate-from-file..."
+                if ! el_sudo /usr/sbin/hibernate-from-file -y 2>/dev/null ; then
+                    el_sudo /usr/sbin/hibernate-from-file -y -D -f
+                    return $?
+                fi
             else
                 el_debug "Attempting hibernation via hibernate-from-file..."
                 if ! el_sudo /usr/sbin/hibernate-from-file -y 2>/dev/null ; then
@@ -590,15 +593,10 @@ do_action(){
                 sync
                 sleep 2
             fi
-        elif hibernate_from_file_is_ready; then
-            el_info "Hibernation swap file already configured. Proceeding with hibernation..."
-            el_debug "Attempting hibernation via kernel power interface (echo disk > /sys/power/state)..."
-            el_sudo bash -c 'echo disk > /sys/power/state'
+        else
+            el_info "Attempting hibernation via hibernate-from-file..."
+            el_sudo hibernate-from-file -y
             return
-        elif ! hibernate_from_file_is_ready; then
-            el_info "No swap found. Setting up swap file via hibernate-from-file..."
-            guitool info "Swap file created. Please wait 5 minutes for the swap space to be fully set up before hibernating."
-            el_sudo hibernate-from-file --setup-only --yes
         fi
     fi
 
