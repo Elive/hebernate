@@ -15,6 +15,13 @@
 #  License: GPL-3.0
 # ============================================================================
 
+# ============================================================================
+#  LOCALISATION
+# ============================================================================
+. gettext.sh
+TEXTDOMAIN="hebernate"
+export TEXTDOMAIN
+
 set -o pipefail
 
 # ============================================================================
@@ -629,6 +636,66 @@ build_resume_params() {
     log_ok "Kernel params : ${FULL_RESUME_PARAMS}"
 }
 
+# ====================================================================
+#  VM‑specific 3D error handling
+# ====================================================================
+detect_vm() {
+    local profile="/etc/elive/machine-profile"
+    IS_VM=false
+    VM_TYPE=""
+    if [[ -f "$profile" ]]; then
+        # shellcheck disable=SC1090
+        source "$profile"
+        if [[ "${MACHINE_VIRTUAL:-no}" == "yes" ]]; then
+            IS_VM=true
+            VM_TYPE="${MACHINE_VIRTUAL_TYPE:-unknown}"
+        fi
+    fi
+}
+
+show_error_gui() {
+    local msg="$1"
+    if [[ -n "$DISPLAY" ]] && command -v zenity &>/dev/null; then
+        zenity --error --title="${PROG}" --text="$msg"
+    else
+        log_error "$msg"
+    fi
+}
+
+handle_vm_hibernate_failure() {
+    local dmesg_out
+    dmesg_out=$(dmesg 2>/dev/null | grep -i "Can't hibernate while 3D resources are active" | head -1)
+    [[ -z "$dmesg_out" ]] && return 1
+
+    detect_vm
+    if ! $IS_VM; then
+        log_warn "vmwgfx hibernation error but not in a known VM; continuing."
+        return 1
+    fi
+
+    local line1 line2 line3 line4
+    line1=$(eval_gettext "Hibernation failed because the 3D acceleration settings in your virtual machine are incompatible with hibernation.")
+    line2=$(eval_gettext "Please disable 3D acceleration in your VM settings.")
+    case "$VM_TYPE" in
+        virtualbox)
+            line3=$(eval_gettext "For VirtualBox, set the Graphics Controller to 'VBoxSVGA' and disable 3D Acceleration.")
+            ;;
+        vmware)
+            line3=$(eval_gettext "For VMware, disable 3D Graphics in the VM settings.")
+            ;;
+        *)
+            line3=$(eval_gettext "For your virtual machine type ($VM_TYPE), disable 3D acceleration.")
+            ;;
+    esac
+    line4=$(eval_gettext "After making the change, shut down and restart the VM for it to take effect.")
+
+    local msg
+    msg="${line1}"$'\n\n'"${line2}"$'\n'"${line3}"$'\n'"${line4}"
+
+    show_error_gui "$msg"
+    exit 1
+}
+
 # ---- initramfs (/etc/initramfs-tools/conf.d/resume) ----
 configure_initramfs() {
     local conf="/etc/initramfs-tools/conf.d/resume"
@@ -797,10 +864,19 @@ perform_hibernate() {
         systemctl)
             log_verbose "Using systemctl hibernate"
             systemctl hibernate
+            if [[ $? -ne 0 ]]; then
+                handle_vm_hibernate_failure
+                log_error "systemctl hibernate failed."
+                return 1
+            fi
             ;;
         kernel)
             log_verbose "Using kernel power interface"
-            echo disk > /sys/power/state
+            if ! echo disk > /sys/power/state; then
+                handle_vm_hibernate_failure
+                log_error "Hibernation failed (kernel interface)."
+                return 1
+            fi
             ;;
         auto|*)
             # Try systemctl first, fall back to kernel
@@ -808,10 +884,18 @@ perform_hibernate() {
                 log_verbose "Trying systemctl hibernate ..."
                 if ! systemctl hibernate 2>/dev/null; then
                     log_warn "systemctl hibernate failed; falling back to kernel interface."
-                    echo disk > /sys/power/state
+                    if ! echo disk > /sys/power/state; then
+                        handle_vm_hibernate_failure
+                        log_error "Hibernation failed (kernel interface)."
+                        return 1
+                    fi
                 fi
             else
-                echo disk > /sys/power/state
+                if ! echo disk > /sys/power/state; then
+                    handle_vm_hibernate_failure
+                    log_error "Hibernation failed (kernel interface)."
+                    return 1
+                fi
             fi
             ;;
     esac
