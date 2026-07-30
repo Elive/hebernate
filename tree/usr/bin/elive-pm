@@ -412,8 +412,8 @@ do_fallback(){
             #is_failed=4
             ;;
         shutdown|poweroff|halt)
-            if ! /sbin/poweroff --poweroff now  2>/dev/null ; then
-                el_sudo /sbin/poweroff --poweroff now
+            if ! /sbin/shutdown -h now  2>/dev/null ; then
+                el_sudo /sbin/shutdown -h now
                 return $?
             fi
             # we still here? report
