@@ -7,6 +7,12 @@ el_make_environment
 TEXTDOMAIN="hebernate"
 export TEXTDOMAIN
 
+# Do not allow running as root or with sudo
+if [[ "$UID" = 0 ]] || [[ "$EUID" = 0 ]] ; then
+    NOREPORTS=1 el_warning "$( eval_gettext "This tool is not meant to be run as root or with sudo. Please run it as a regular user." )"
+    exit 1
+fi
+
 # Lock system (good one) {{{
 lockfile="/tmp/.$(basename $0)-${USER}.lock"
 
